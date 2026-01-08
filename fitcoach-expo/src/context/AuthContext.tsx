@@ -1,8 +1,15 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import SafeAsyncStorage from '../utils/SafeAsyncStorage';
-import { registerSessionExpiredCallback, cancelAllRequests } from '../services/api';
+import { registerSessionExpiredCallback, cancelAllRequests, authAPI } from '../services/api';
+import { API_BASE_URL } from '../config/api.config';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
+
+// Complete auth session for Google
+WebBrowser.maybeCompleteAuthSession();
 
 const TOKEN_KEY = 'fitcoach_access_token';
 const REFRESH_TOKEN_KEY = 'fitcoach_refresh_token';
@@ -34,6 +41,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   signup: (email: string, password: string, name: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
+  loginWithApple: () => Promise<boolean>;
   logout: () => Promise<void>;
   forceLogout: () => Promise<void>; // NEW: For session expiry
   continueAsGuest: () => Promise<void>;
@@ -49,10 +58,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Google OAuth configuration (hook must be at top level)
+  const clientIds = {
+    ios: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
+    android: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,
+    web: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+  };
+
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: clientIds.ios,
+    androidClientId: clientIds.android,
+    webClientId: clientIds.web,
+    expoClientId: clientIds.web,
+  });
+
 // ============================================================================
 // PRODUCTION HARDENING: API URL from environment
 // ============================================================================
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = API_BASE_URL;
 
 const getHeaders = () => ({
   'Content-Type': 'application/json',
@@ -236,6 +259,134 @@ const getHeaders = () => ({
   const register = signup;
 
   /**
+   * Google OAuth Authentication
+   */
+  const loginWithGoogle = async (): Promise<boolean> => {
+    setAuthStatus('loading');
+    setError(null);
+
+    try {
+      // Check if Google OAuth is configured
+      if (!clientIds.web && !clientIds.ios && !clientIds.android) {
+        setError('Google Sign-In is not configured. Please set EXPO_PUBLIC_GOOGLE_CLIENT_ID');
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+
+      // Prompt for authentication
+      const result = await googlePromptAsync();
+
+      if (result.type !== 'success') {
+        if (result.type === 'cancel') {
+          setError('Google sign-in was cancelled');
+        } else {
+          setError('Google sign-in failed');
+        }
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+
+      // Get ID token from response
+      const idToken = result.params?.id_token;
+      if (!idToken) {
+        setError('Failed to get Google ID token');
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+
+      // Send to backend for verification
+      const authResponse = await authAPI.googleAuth(idToken);
+      const { accessToken, refreshToken, user: userData } = authResponse;
+
+      // Store all auth data securely
+      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+      await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+
+      setToken(accessToken);
+      setUser(userData);
+      setAuthStatus('authenticated');
+      console.log('✅ [AUTH] Google login successful');
+      return true;
+    } catch (err: any) {
+      console.error('Google auth error:', err);
+      setError(err.message || 'Google authentication failed');
+      setAuthStatus('unauthenticated');
+      return false;
+    }
+  };
+
+  /**
+   * Apple OAuth Authentication
+   */
+  const loginWithApple = async (): Promise<boolean> => {
+    setAuthStatus('loading');
+    setError(null);
+
+    try {
+      // Check if Apple Authentication is available
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        setError('Apple Sign-In is not available on this device');
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+
+      // Request Apple authentication
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        setError('Failed to get Apple identity token');
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+
+      // Prepare user data (Apple only provides this on first sign-in)
+      const appleUser = credential.fullName
+        ? {
+            email: credential.email,
+            name: {
+              firstName: credential.fullName.givenName || '',
+              lastName: credential.fullName.familyName || '',
+            },
+          }
+        : undefined;
+
+      // Send to backend for verification
+      const authResponse = await authAPI.appleAuth(credential.identityToken, appleUser);
+      const { accessToken, refreshToken, user: userData } = authResponse;
+
+      // Store all auth data securely
+      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+      await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+
+      setToken(accessToken);
+      setUser(userData);
+      setAuthStatus('authenticated');
+      console.log('✅ [AUTH] Apple login successful');
+      return true;
+    } catch (err: any) {
+      console.error('Apple auth error:', err);
+      
+      // Handle user cancellation gracefully
+      if (err.code === 'ERR_REQUEST_CANCELED' || err.message?.includes('canceled')) {
+        setError('Apple sign-in was cancelled');
+      } else {
+        setError(err.message || 'Apple authentication failed');
+      }
+      
+      setAuthStatus('unauthenticated');
+      return false;
+    }
+  };
+
+  /**
    * PRODUCTION RULE: Logout MUST be complete and destructive.
    * - Clear all stored tokens
    * - Clear in-memory auth state
@@ -358,6 +509,8 @@ const getHeaders = () => ({
         login,
         register,
         signup,
+        loginWithGoogle,
+        loginWithApple,
         logout,
         forceLogout,
         continueAsGuest,

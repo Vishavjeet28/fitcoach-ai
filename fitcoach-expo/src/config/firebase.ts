@@ -11,22 +11,31 @@ let analytics: any = null;
 // Initialize Firebase services
 export const initializeFirebase = async () => {
   try {
-    // Only import Firebase in production or when explicitly enabled
+    // Always try to initialize Firebase (will fail gracefully if not configured)
+    // In production, Firebase should be properly configured with GoogleService files
     if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_FIREBASE_DEV) {
-      console.log('[Firebase] Skipping initialization in development mode');
+      console.log('[Firebase] Skipping initialization in development mode (set EXPO_PUBLIC_ENABLE_FIREBASE_DEV=true to enable)');
       return false;
     }
 
     // Dynamic imports to avoid loading in dev if not needed
-    const firebaseApp = await import('@react-native-firebase/app');
-    const firebaseCrashlytics = await import('@react-native-firebase/crashlytics');
-    const firebaseAnalytics = await import('@react-native-firebase/analytics');
+    const firebaseAppModule = await import('@react-native-firebase/app');
+    const firebaseCrashlyticsModule = await import('@react-native-firebase/crashlytics');
+    const firebaseAnalyticsModule = await import('@react-native-firebase/analytics');
 
-    crashlytics = firebaseCrashlytics.default();
-    analytics = firebaseAnalytics.default();
+    const firebaseApp = firebaseAppModule.default || firebaseAppModule;
+    const firebaseCrashlytics = firebaseCrashlyticsModule.default || firebaseCrashlyticsModule;
+    const firebaseAnalytics = firebaseAnalyticsModule.default || firebaseAnalyticsModule;
+
+    // @ts-ignore
+    crashlytics = firebaseCrashlytics();
+    // @ts-ignore
+    analytics = firebaseAnalytics();
 
     // Verify Firebase is properly configured
-    if (!firebaseApp.default().apps.length) {
+    // @ts-ignore
+    const apps = firebaseApp.apps || firebaseApp().apps; 
+    if (!apps || !apps.length) {
       throw new Error('Firebase app not initialized. Check GoogleService files.');
     }
 

@@ -136,7 +136,7 @@ function TabNavigator() {
 }
 
 export default function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   // Show loading spinner while checking auth state
   if (isLoading) {
@@ -147,6 +147,9 @@ export default function AppNavigator() {
     );
   }
 
+  // Allow navigation if authenticated OR if user exists (guest mode)
+  const canNavigate = isAuthenticated || (user && user.id === 0);
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -154,7 +157,7 @@ export default function AppNavigator() {
           headerShown: false,
         }}
       >
-        {isAuthenticated ? (
+        {canNavigate ? (
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="FoodLog" component={FoodLogScreen} />

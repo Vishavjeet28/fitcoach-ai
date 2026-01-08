@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fitcoach.ai",
-      "googleServicesFile": "./ios/GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -31,10 +32,16 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/crashlytics"
+    ],
+    "scheme": "fitcoach",
     "extra": {
       "eas": {
         "projectId": "fitcoach-ai"
-      }
+      },
+      "EXPO_PUBLIC_API_URL": "http://localhost:5001/api"
     }
   }
 }
