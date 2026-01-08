@@ -1,0 +1,340 @@
+{
+  "foods": [
+    {
+      "name": "Oats Cooked",
+      "calories": 68,
+      "protein": 2.4,
+      "carbs": 12.0,
+      "fat": 1.4,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Milk Skimmed",
+      "calories": 34,
+      "protein": 3.4,
+      "carbs": 5.0,
+      "fat": 0.1,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Milk Full Cream",
+      "calories": 60,
+      "protein": 3.2,
+      "carbs": 5.0,
+      "fat": 3.5,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Curd Low Fat",
+      "calories": 45,
+      "protein": 4.0,
+      "carbs": 5.0,
+      "fat": 1.0,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Rice Cooked",
+      "calories": 130,
+      "protein": 2.7,
+      "carbs": 28.0,
+      "fat": 0.3,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Dal Cooked",
+      "calories": 120,
+      "protein": 7.0,
+      "carbs": 17.0,
+      "fat": 3.0,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Vegetable Sabzi",
+      "calories": 90,
+      "protein": 3.0,
+      "carbs": 12.0,
+      "fat": 4.0,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Fruit Bowl",
+      "calories": 65,
+      "protein": 1.0,
+      "carbs": 16.0,
+      "fat": 0.2,
+      "category": "Daily Food"
+    },
+    {
+      "name": "Egg White",
+      "calories": 52,
+      "protein": 11.0,
+      "carbs": 1.0,
+      "fat": 0.2,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Whole Egg",
+      "calories": 155,
+      "protein": 13.0,
+      "carbs": 1.1,
+      "fat": 11.0,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Chicken Breast Cooked",
+      "calories": 165,
+      "protein": 31.0,
+      "carbs": 0.0,
+      "fat": 3.6,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Fish Grilled",
+      "calories": 170,
+      "protein": 22.0,
+      "carbs": 0.0,
+      "fat": 6.0,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Paneer Low Fat",
+      "calories": 145,
+      "protein": 18.0,
+      "carbs": 6.0,
+      "fat": 7.0,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Tofu",
+      "calories": 76,
+      "protein": 8.0,
+      "carbs": 2.0,
+      "fat": 4.8,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Greek Yogurt",
+      "calories": 59,
+      "protein": 10.0,
+      "carbs": 3.6,
+      "fat": 0.4,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Whey Protein Powder",
+      "calories": 412,
+      "protein": 82.0,
+      "carbs": 8.0,
+      "fat": 6.0,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Peanut Butter",
+      "calories": 588,
+      "protein": 25.0,
+      "carbs": 20.0,
+      "fat": 50.0,
+      "category": "Gym / High Protein"
+    },
+    {
+      "name": "Protein Bar",
+      "calories": 160,
+      "protein": 9.0,
+      "carbs": 14.0,
+      "fat": 6.5,
+      "category": "Snack"
+    },
+    {
+      "name": "Roasted Chana",
+      "calories": 170,
+      "protein": 10.0,
+      "carbs": 16.0,
+      "fat": 8.0,
+      "category": "Snack"
+    },
+    {
+      "name": "Almonds",
+      "calories": 180,
+      "protein": 11.0,
+      "carbs": 18.0,
+      "fat": 9.5,
+      "category": "Snack"
+    },
+    {
+      "name": "Cashews",
+      "calories": 190,
+      "protein": 12.0,
+      "carbs": 20.0,
+      "fat": 11.0,
+      "category": "Snack"
+    },
+    {
+      "name": "Peanuts",
+      "calories": 200,
+      "protein": 13.0,
+      "carbs": 22.0,
+      "fat": 12.5,
+      "category": "Snack"
+    },
+    {
+      "name": "Makhana",
+      "calories": 210,
+      "protein": 14.0,
+      "carbs": 24.0,
+      "fat": 14.0,
+      "category": "Snack"
+    },
+    {
+      "name": "Fruit Smoothie",
+      "calories": 220,
+      "protein": 15.0,
+      "carbs": 26.0,
+      "fat": 15.5,
+      "category": "Snack"
+    },
+    {
+      "name": "Roti",
+      "calories": 297,
+      "protein": 11.0,
+      "carbs": 61.0,
+      "fat": 2.0,
+      "category": "Indian Staple"
+    },
+    {
+      "name": "Chapati",
+      "calories": 104,
+      "protein": 3.1,
+      "carbs": 18.0,
+      "fat": 2.5,
+      "category": "Indian Staple"
+    },
+    {
+      "name": "Naan",
+      "calories": 262,
+      "protein": 8.7,
+      "carbs": 45.2,
+      "fat": 5.1,
+      "category": "Indian Bread"
+    },
+    {
+      "name": "Paratha",
+      "calories": 320,
+      "protein": 6.5,
+      "carbs": 36.0,
+      "fat": 18.0,
+      "category": "Indian Bread"
+    },
+    {
+      "name": "Basmati Rice",
+      "calories": 121,
+      "protein": 3.5,
+      "carbs": 25.0,
+      "fat": 0.4,
+      "category": "Indian Staple"
+    },
+    {
+      "name": "Biryani",
+      "calories": 200,
+      "protein": 8.0,
+      "carbs": 35.0,
+      "fat": 4.0,
+      "category": "Indian Main"
+    },
+    {
+      "name": "Rajma",
+      "calories": 127,
+      "protein": 8.7,
+      "carbs": 22.8,
+      "fat": 0.5,
+      "category": "Indian Dal"
+    },
+    {
+      "name": "Chana Masala",
+      "calories": 164,
+      "protein": 8.9,
+      "carbs": 27.4,
+      "fat": 2.6,
+      "category": "Indian Curry"
+    },
+    {
+      "name": "Palak Paneer",
+      "calories": 119,
+      "protein": 7.9,
+      "carbs": 4.6,
+      "fat": 8.8,
+      "category": "Indian Curry"
+    },
+    {
+      "name": "Butter Chicken",
+      "calories": 438,
+      "protein": 30.5,
+      "carbs": 6.0,
+      "fat": 31.8,
+      "category": "Indian Main"
+    },
+    {
+      "name": "Idli",
+      "calories": 58,
+      "protein": 2.0,
+      "carbs": 12.0,
+      "fat": 0.1,
+      "category": "South Indian"
+    },
+    {
+      "name": "Dosa",
+      "calories": 133,
+      "protein": 4.0,
+      "carbs": 20.0,
+      "fat": 4.0,
+      "category": "South Indian"
+    },
+    {
+      "name": "Upma",
+      "calories": 85,
+      "protein": 2.8,
+      "carbs": 13.0,
+      "fat": 2.5,
+      "category": "South Indian"
+    },
+    {
+      "name": "Samosa",
+      "calories": 262,
+      "protein": 3.5,
+      "carbs": 24.0,
+      "fat": 17.0,
+      "category": "Snack"
+    },
+    {
+      "name": "Pakora",
+      "calories": 158,
+      "protein": 3.9,
+      "carbs": 13.6,
+      "fat": 10.1,
+      "category": "Snack"
+    },
+    {
+      "name": "Gulab Jamun",
+      "calories": 387,
+      "protein": 4.0,
+      "carbs": 52.7,
+      "fat": 17.0,
+      "category": "Sweet"
+    },
+    {
+      "name": "Rasgulla",
+      "calories": 186,
+      "protein": 4.0,
+      "carbs": 40.0,
+      "fat": 1.0,
+      "category": "Sweet"
+    },
+    {
+      "name": "Lassi",
+      "calories": 108,
+      "protein": 2.3,
+      "carbs": 14.0,
+      "fat": 4.3,
+      "category": "Drink"
+    }
+  ]
+}

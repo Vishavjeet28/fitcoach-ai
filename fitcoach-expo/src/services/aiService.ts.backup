@@ -1,0 +1,140 @@
+/**
+ * AI Service for React Native - Backend Gemini Integration
+ * Connects to FitCoach backend AI endpoints powered by Gemini
+ */
+
+import apiClient from './api';
+
+interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+class AIService {
+  /**
+   * Chat with AI using chat history
+   * Calls backend /api/ai/ask endpoint
+   */
+  async chatWithHistory(messages: Array<{role: 'user' | 'assistant'; content: string}>): Promise<string> {
+    try {
+      console.log('🤖 [AI] Sending chat request to backend:', messages.length, 'messages');
+      
+      const response = await apiClient.post('/ai/ask', {
+        question: messages[messages.length - 1].content, // Send the latest user message
+        context: messages.slice(0, -1) // Send previous conversation as context
+      });
+
+      console.log('✅ [AI] Received response from backend');
+      return response.data.answer || response.data.message || 'Sorry, I couldn\'t generate a response.';
+    } catch (error: any) {
+      console.error('❌ [AI] Backend AI call failed:', error);
+      console.error('❌ [AI] Error details:', error.response?.data || error.message);
+      
+      // Return user-friendly error
+      return 'Sorry, I\'m having trouble connecting right now. Please try again in a moment.';
+    }
+  }
+
+  /**
+   * Simple chat without history
+   */
+  async chat(userMessage: string, systemPrompt?: string): Promise<string> {
+    try {
+      console.log('🤖 [AI] Sending simple chat request');
+      
+      const response = await apiClient.post('/ai/ask', {
+        question: userMessage
+      });
+
+      console.log('✅ [AI] Received response');
+      return response.data.answer || response.data.message || 'Sorry, I couldn\'t generate a response.';
+    } catch (error: any) {
+      console.error('❌ [AI] Backend AI call failed:', error);
+      return 'Sorry, I\'m having trouble connecting right now. Please try again in a moment.';
+    }
+  }
+
+  /**
+   * Get daily AI insights
+   */
+  async getInsights(): Promise<any> {
+    try {
+      console.log('🤖 [AI] Fetching daily insights');
+      
+      const response = await apiClient.get('/ai/insights');
+      
+      console.log('✅ [AI] Received insights');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [AI] Failed to fetch insights:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get meal suggestions
+   */
+  async getMealSuggestions(mealType: string, calorieTarget?: number, preferences?: string[]): Promise<string> {
+    try {
+      console.log('🤖 [AI] Requesting meal suggestions for:', mealType);
+      
+      const response = await apiClient.post('/ai/meal-suggestions', {
+        mealType,
+        calorieTarget,
+        dietaryPreferences: preferences
+      });
+
+      console.log('✅ [AI] Received meal suggestions');
+      return response.data.suggestions || response.data.message || 'No suggestions available.';
+    } catch (error: any) {
+      console.error('❌ [AI] Failed to get meal suggestions:', error);
+      return 'Unable to get meal suggestions right now.';
+    }
+  }
+
+  /**
+   * Analyze food item
+   */
+  async analyzeFoodItem(foodName: string): Promise<string> {
+    try {
+      console.log('🤖 [AI] Analyzing food:', foodName);
+      
+      const response = await apiClient.post('/ai/recognize-food', {
+        foodDescription: foodName
+      });
+
+      console.log('✅ [AI] Received food analysis');
+      return response.data.analysis || response.data.message || 'Unable to analyze this food.';
+    } catch (error: any) {
+      console.error('❌ [AI] Failed to analyze food:', error);
+      return 'Unable to analyze this food right now.';
+    }
+  }
+
+  /**
+   * Get fitness advice
+   */
+  async getFitnessAdvice(query: string, userContext?: any): Promise<string> {
+    return this.chat(query);
+  }
+
+  /**
+   * Get workout plan
+   */
+  async getWorkoutPlan(goals: string, fitnessLevel?: string): Promise<string> {
+    const query = `Create a workout plan for: ${goals}, fitness level: ${fitnessLevel || 'beginner'}`;
+    return this.chat(query);
+  }
+
+  /**
+   * Get hydration advice
+   */
+  async getHydrationAdvice(currentIntake: number, goal: number): Promise<string> {
+    const query = `Current water intake: ${currentIntake}L, Goal: ${goal}L. Give me hydration tips.`;
+    return this.chat(query);
+  }
+}
+
+// Export singleton
+const instance = new AIService();
+export default instance;

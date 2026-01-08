@@ -1,0 +1,242 @@
+import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import * as SecureStore from 'expo-secure-store';
+import SafeAsyncStorage from '../utils/SafeAsyncStorage';
+
+const TOKEN_KEY = 'fitcoach_access_token';
+const REFRESH_TOKEN_KEY = 'fitcoach_refresh_token';
+const USER_KEY = 'fitcoach_user';
+
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  weight?: number;
+  height?: number;
+  age?: number;
+  gender?: string;
+  activityLevel?: string;
+  goal?: string;
+  calorieTarget?: number;
+}
+
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isAuthReady: boolean; // NEW: Explicit auth readiness flag
+  error: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string) => Promise<boolean>;
+  signup: (email: string, password: string, name: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  continueAsGuest: () => Promise<void>;
+  clearError: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false); // NEW: Auth readiness state
+  const [error, setError] = useState<string | null>(null);
+
+  const API_URL = 'https://nonnutritive-drusilla-phosphoric.ngrok-free.dev/api';
+
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  });
+
+  useEffect(() => {
+    loadStoredAuth();
+  }, []);
+
+  const loadStoredAuth = async () => {
+    console.log('🔐 [AUTH] Starting auth restoration...');
+    try {
+      const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+      const storedUser = await SafeAsyncStorage.getItem(USER_KEY);
+
+      if (storedToken && storedUser) {
+        console.log('✅ [AUTH] Token and user found in storage');
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } else {
+        console.log('ℹ️ [AUTH] No stored credentials found');
+      }
+    } catch (err) {
+      console.error('❌ [AUTH] Error loading stored auth:', err);
+    } finally {
+      setIsLoading(false);
+      setIsAuthReady(true); // NEW: Mark auth as ready after restoration attempt
+      console.log('✅ [AUTH] Auth system ready');
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Login Backend error response:', text);
+        let errorMessage = 'Login failed';
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const { accessToken, refreshToken, user: userData } = data;
+
+      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+      await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+
+      setToken(accessToken);
+      setUser(userData);
+      console.log('✅ [AUTH] Login successful');
+      return true;
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+      console.error('Login error:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signup = async (email: string, password: string, name: string): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Backend error response:', text);
+        let errorMessage = 'Registration failed';
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            errorMessage = errorData.errors.map((e: any) => e.msg || e.message).join(', ');
+          }
+        } catch {
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const { accessToken, refreshToken, user: userData } = data;
+
+      await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+      await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+
+      setToken(accessToken);
+      setUser(userData);
+      console.log('✅ [AUTH] Signup successful');
+      return true;
+    } catch (err: any) {
+      setError(err.message || 'Signup failed');
+      console.error('Signup error:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = signup;
+
+  const logout = async (): Promise<void> => {
+    try {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      await SafeAsyncStorage.removeItem(USER_KEY);
+
+      setToken(null);
+      setUser(null);
+      setError(null);
+      console.log('✅ [AUTH] Logout successful');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  const continueAsGuest = async (): Promise<void> => {
+    try {
+      const guestUser: User = {
+        id: 0,
+        email: 'guest@fitcoach.ai',
+        name: 'Guest User',
+        calorieTarget: 2000,
+      };
+
+      setUser(guestUser);
+      setToken('guest-token');
+      await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(guestUser));
+      console.log('✅ [AUTH] Guest mode activated');
+    } catch (err) {
+      console.error('Continue as guest error:', err);
+      setError('Failed to continue as guest');
+    }
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isAuthenticated: !!token,
+        isLoading,
+        isAuthReady, // NEW: Export auth readiness
+        error,
+        login,
+        register,
+        signup,
+        logout,
+        continueAsGuest,
+        clearError,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+// NEW: Dedicated hook for auth readiness checks
+export const useAuthReady = () => {
+  const { isAuthReady, isAuthenticated, token } = useAuth();
+  return { isAuthReady, isAuthenticated, token };
+};

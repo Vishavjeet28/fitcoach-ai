@@ -1,0 +1,62 @@
+╔════════════════════════════════════════════════════════════╗
+║    🚀 FITCOACH AI - BOTH SERVERS ARE RUNNING! ✅           ║
+╚════════════════════════════════════════════════════════════╝
+
+✅ EXPO DEV SERVER: RUNNING on port 8081
+✅ BACKEND API SERVER: RUNNING on port 3001
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 SCAN THE QR CODE NOW!
+
+Look at your terminal - there's a BIG QR CODE displayed!
+
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀▄█▀ ▀█  █ ▄▄▄▄▄ █
+█ █   █ █▄   ▄██▄██ █   █ █
+[...QR CODE...]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📲 HOW TO USE:
+
+1. Install "Expo Go" app on your phone
+   • iPhone: App Store
+   • Android: Play Store
+
+2. Scan the QR code:
+   • iPhone: Open Camera app → Point at QR → Tap notification
+   • Android: Open Expo Go → Tap "Scan QR Code"
+
+3. Your app loads on your phone! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 WHAT WORKS:
+
+✅ Dashboard - View calories, macros, water intake
+✅ AI Coach - Chat and log meals (Coming soon - need to fix)
+✅ Recipes - Browse recipes (Coming soon - need to fix)  
+✅ Profile - View user info (Coming soon - need to fix)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  IMPORTANT:
+
+• Phone and Mac MUST be on same WiFi network
+• Both servers are running - don't close terminals!
+• API URL: http://192.168.31.240:3001/api
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 DEVELOPMENT:
+
+• Edit code → Save → App reloads automatically!
+• Press 'r' in Expo terminal to manually reload
+• Press Ctrl+C to stop servers
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 SCAN THE QR CODE AND START USING YOUR APP! 🚀✨
+
+╚════════════════════════════════════════════════════════════╝

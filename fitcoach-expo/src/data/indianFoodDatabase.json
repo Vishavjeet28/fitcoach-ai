@@ -1,0 +1,95 @@
+{
+  "foods": [
+    {
+      "name": "Paneer Tikka",
+      "calories": 180,
+      "protein": 14,
+      "carbs": 8,
+      "fat": 11
+    },
+    {
+      "name": "Butter Chicken",
+      "calories": 250,
+      "protein": 20,
+      "carbs": 10,
+      "fat": 15
+    },
+    {
+      "name": "Dal Makhani",
+      "calories": 150,
+      "protein": 9,
+      "carbs": 18,
+      "fat": 5
+    },
+    {
+      "name": "Rajma",
+      "calories": 140,
+      "protein": 8.5,
+      "carbs": 20,
+      "fat": 3.5
+    },
+    {
+      "name": "Chole",
+      "calories": 160,
+      "protein": 9,
+      "carbs": 22,
+      "fat": 4
+    },
+    {
+      "name": "Samosa",
+      "calories": 262,
+      "protein": 4.5,
+      "carbs": 35,
+      "fat": 12
+    },
+    {
+      "name": "Pakora",
+      "calories": 220,
+      "protein": 5,
+      "carbs": 28,
+      "fat": 10
+    },
+    {
+      "name": "Paratha",
+      "calories": 320,
+      "protein": 7,
+      "carbs": 45,
+      "fat": 13
+    },
+    {
+      "name": "Naan",
+      "calories": 310,
+      "protein": 9,
+      "carbs": 52,
+      "fat": 7
+    },
+    {
+      "name": "Poha",
+      "calories": 180,
+      "protein": 3.5,
+      "carbs": 30,
+      "fat": 5
+    },
+    {
+      "name": "Upma",
+      "calories": 160,
+      "protein": 4,
+      "carbs": 28,
+      "fat": 4.5
+    },
+    {
+      "name": "Dhokla",
+      "calories": 150,
+      "protein": 5,
+      "carbs": 25,
+      "fat": 3.5
+    },
+    {
+      "name": "Khichdi",
+      "calories": 120,
+      "protein": 4.5,
+      "carbs": 22,
+      "fat": 2
+    }
+  ]
+}

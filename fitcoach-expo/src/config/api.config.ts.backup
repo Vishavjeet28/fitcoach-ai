@@ -1,0 +1,12 @@
+// API Configuration
+export const API_BASE_URL = __DEV__
+  ? 'https://nonnutritive-drusilla-phosphoric.ngrok-free.dev/api'
+  : 'https://your-production-api.com/api';
+
+export const API_TIMEOUT = 30000; // 30 seconds
+
+// Token storage keys (alphanumeric, dots, dashes, underscores only)
+export const TOKEN_STORAGE = {
+  ACCESS_TOKEN: 'fitcoach_access_token',
+  REFRESH_TOKEN: 'fitcoach_refresh_token',
+};
