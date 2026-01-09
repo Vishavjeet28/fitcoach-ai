@@ -29,6 +29,11 @@ const colors = {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   }
 
+  function isValidName(name: string) {
+    // Name can only contain letters, spaces, hyphens, and apostrophes
+    return /^[a-zA-Z\s'-]+$/.test(name.trim());
+  }
+
   export default function AuthScreen() {
     const { login, signup, loginWithGoogle, loginWithApple, continueAsGuest, error, clearError, isLoading } = useAuth();
 
@@ -51,6 +56,7 @@ const colors = {
       if (password.length < 6) return false;
       if (!isLogin) {
         if (!name.trim()) return false;
+        if (!isValidName(name)) return false;
         if (password !== confirmPassword) return false;
       }
       return true;
@@ -71,6 +77,7 @@ const colors = {
       if (password.length < 6) return showError('Password must be at least 6 characters.');
       if (!isLogin) {
         if (!trimmedName) return showError('Please enter your name.');
+        if (!isValidName(trimmedName)) return showError('Name can only contain letters, spaces, hyphens, and apostrophes.');
         if (password !== confirmPassword) return showError('Passwords do not match.');
       }
 

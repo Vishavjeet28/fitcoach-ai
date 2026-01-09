@@ -3,7 +3,7 @@
  * Helper functions for checking user authentication state
  */
 
-import { User } from '../context/AuthContext';
+import type { User } from '../context/AuthContext';
 
 /**
  * Check if user is a guest (not authenticated)

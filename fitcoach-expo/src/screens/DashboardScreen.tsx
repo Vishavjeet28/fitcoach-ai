@@ -12,11 +12,13 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useAuthReady } from '../context/AuthContext';
+import { useAuthReady, useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { analyticsAPI, foodAPI, exerciseAPI, waterAPI, handleAPIError } from '../services/api';
+import { logScreenView } from '../config/firebase';
 
 const { width } = Dimensions.get('window');
 
@@ -35,8 +37,21 @@ const colors = {
   orange: '#FB7185',
 };
 
+type RootStackParamList = {
+  Main: undefined;
+  FoodLog: undefined;
+  ExerciseLog: undefined;
+  WaterLog: undefined;
+  Coach: undefined;
+  Profile: undefined;
+  History: undefined;
+};
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 const DashboardScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
+  const { user } = useAuth();
   const { isAuthReady } = useAuthReady();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,6 +76,16 @@ const DashboardScreen = () => {
 
   const fetchDashboardData = async () => {
     console.log('📊 [DASHBOARD] Fetching dashboard data...');
+    
+    // Check if we are in guest mode
+    if (user?.email === 'guest@fitcoach.ai') {
+        console.log('👤 [DASHBOARD] Guest mode detected - using local/mock data');
+        setLoading(false);
+        // We can just keep the default state which has zero values
+        // or load from local storage if needed
+        return;
+    }
+
     try {
       // Fetch daily summary (contains all metrics in one call)
       const dailyData = await analyticsAPI.getDailySummary();
@@ -124,7 +149,10 @@ const DashboardScreen = () => {
   // Refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (isAuthReady) { fetchDashboardData(); }
+      if (isAuthReady) { 
+        fetchDashboardData();
+        logScreenView('Dashboard');
+      }
     }, [isAuthReady])
   );
 

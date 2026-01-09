@@ -11,12 +11,9 @@ let analytics: any = null;
 // Initialize Firebase services
 export const initializeFirebase = async () => {
   try {
-    // Always try to initialize Firebase (will fail gracefully if not configured)
-    // In production, Firebase should be properly configured with GoogleService files
-    if (__DEV__ && !process.env.EXPO_PUBLIC_ENABLE_FIREBASE_DEV) {
-      console.log('[Firebase] Skipping initialization in development mode (set EXPO_PUBLIC_ENABLE_FIREBASE_DEV=true to enable)');
-      return false;
-    }
+    // Always try to initialize Firebase if GoogleService files are present
+    // Firebase will work in both development and production
+    console.log('[Firebase] Attempting to initialize Firebase...');
 
     // Dynamic imports to avoid loading in dev if not needed
     const firebaseAppModule = await import('@react-native-firebase/app');
@@ -29,8 +26,24 @@ export const initializeFirebase = async () => {
 
     // @ts-ignore
     crashlytics = firebaseCrashlytics();
-    // @ts-ignore
-    analytics = firebaseAnalytics();
+    
+    // Analytics may not be available if native code hasn't been rebuilt
+    // Try to initialize it but don't fail if it's not available
+    try {
+      // @ts-ignore
+      const analyticsInstance = firebaseAnalytics();
+      if (analyticsInstance && typeof analyticsInstance.logEvent === 'function') {
+        analytics = analyticsInstance;
+        console.log('[Firebase] Analytics module loaded successfully');
+      } else {
+        throw new Error('Analytics instance is not properly initialized');
+      }
+    } catch (analyticsError: any) {
+      console.warn('[Firebase] Analytics not available in native code');
+      console.warn('[Firebase] This is normal in development. For full Analytics, rebuild native code:');
+      console.warn('[Firebase] Run: npx expo prebuild --clean && npx expo run:ios');
+      analytics = null;
+    }
 
     // Verify Firebase is properly configured
     // @ts-ignore
@@ -81,24 +94,46 @@ export const logMessage = (message: string, level: 'debug' | 'info' | 'warning' 
 };
 
 export const setUser = (userId: string, email?: string, username?: string) => {
-  if (!crashlytics) return;
-
   try {
-    crashlytics.setUserId(userId);
-    if (email) crashlytics.setAttribute('email', email);
-    if (username) crashlytics.setAttribute('username', username);
+    // Set user in Crashlytics
+    if (crashlytics) {
+      crashlytics.setUserId(userId);
+      if (email) crashlytics.setAttribute('email', email);
+      if (username) crashlytics.setAttribute('username', username);
+    }
+    
+    // Set user in Analytics (for user tracking in Firebase Console)
+    if (analytics) {
+      analytics.setUserId(userId);
+      if (email) {
+        analytics.setUserProperty('email', email);
+        analytics.setUserProperty('user_email', email);
+      }
+      if (username) {
+        analytics.setUserProperty('username', username);
+        analytics.setUserProperty('user_name', username);
+      }
+    } else if (__DEV__) {
+      console.log(`[Firebase Analytics] Would set user: ${userId}, email: ${email}, name: ${username}`);
+    }
   } catch (e) {
     console.error('[Firebase] Failed to set user:', e);
   }
 };
 
 export const clearUser = () => {
-  if (!crashlytics) return;
-
   try {
-    crashlytics.setUserId('');
-    crashlytics.setAttribute('email', '');
-    crashlytics.setAttribute('username', '');
+    // Clear user in Crashlytics
+    if (crashlytics) {
+      crashlytics.setUserId('');
+      crashlytics.setAttribute('email', '');
+      crashlytics.setAttribute('username', '');
+    }
+    
+    // Clear user in Analytics
+    if (analytics) {
+      analytics.setUserId(null);
+    }
   } catch (e) {
     console.error('[Firebase] Failed to clear user:', e);
   }
@@ -106,25 +141,55 @@ export const clearUser = () => {
 
 // Analytics helpers
 export const logEvent = (eventName: string, params?: Record<string, any>) => {
-  if (!analytics) return;
+  if (!analytics) {
+    // Log what would be sent (for debugging)
+    if (__DEV__) {
+      console.log(`[Firebase Analytics] Would log event: ${eventName}`, params || {});
+    }
+    return;
+  }
 
   try {
-    analytics.logEvent(eventName, params);
-  } catch (e) {
-    console.error('[Firebase] Failed to log event:', e);
+    // Use Firebase Analytics logEvent
+    analytics.logEvent(eventName, params || {});
+    if (__DEV__) {
+      console.log(`[Firebase Analytics] Event logged: ${eventName}`, params || {});
+    }
+  } catch (e: any) {
+    // Check if it's the "not installed natively" error
+    if (e?.message?.includes('not installed natively') || e?.message?.includes('firebase.analytics')) {
+      if (__DEV__) {
+        console.warn('[Firebase] Analytics requires native rebuild. Event would be:', eventName, params);
+      }
+      analytics = null; // Mark as unavailable to prevent repeated errors
+    } else {
+      console.error('[Firebase] Failed to log event:', e);
+    }
   }
 };
 
 export const logScreenView = (screenName: string, screenClass?: string) => {
-  if (!analytics) return;
+  if (!analytics) {
+    // Silently fail if analytics is not available
+    if (__DEV__) {
+      console.log(`[Firebase Analytics] Would log screen view: ${screenName}`);
+    }
+    return;
+  }
 
   try {
     analytics.logScreenView({
       screen_name: screenName,
       screen_class: screenClass || screenName,
     });
-  } catch (e) {
-    console.error('[Firebase] Failed to log screen view:', e);
+  } catch (e: any) {
+    // Check if it's the "not installed natively" error
+    if (e?.message?.includes('not installed natively')) {
+      console.warn('[Firebase] Analytics not available - native rebuild required. Run: npx expo prebuild --clean');
+      analytics = null; // Mark as unavailable to prevent repeated errors
+    } else {
+      console.error('[Firebase] Failed to log screen view:', e);
+    }
   }
 };
 

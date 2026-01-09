@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../config/api.config';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { logEvent, setUser as setFirebaseUser, clearUser as clearFirebaseUser } from '../config/firebase';
 
 // Complete auth session for Google
 WebBrowser.maybeCompleteAuthSession();
@@ -18,7 +19,7 @@ const USER_KEY = 'fitcoach_user';
 // STRICT AUTH STATE MACHINE (NON-NEGOTIABLE)
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
-interface User {
+export interface User {
   id: number;
   email: string;
   name: string;
@@ -58,19 +59,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Google OAuth configuration (hook must be at top level)
+  // Google OAuth configuration (hook must be at top level and unconditional)
   const clientIds = {
     ios: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
     android: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,
     web: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
   };
 
-  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    iosClientId: clientIds.ios,
-    androidClientId: clientIds.android,
-    webClientId: clientIds.web,
-    expoClientId: clientIds.web,
-  });
+  // Check if Google OAuth is configured (for validation later)
+  const hasGoogleConfig = !!(clientIds.ios || clientIds.android || clientIds.web);
+  
+  // Hook must be called unconditionally
+  // On iOS, we MUST provide iosClientId or the hook will throw an error
+  // Provide a dummy value if not configured - loginWithGoogle will check and prevent usage
+  const googleConfig = Platform.OS === 'ios'
+    ? {
+        iosClientId: clientIds.ios || 'dummy-ios-client-id-not-configured',
+        ...(clientIds.web && { webClientId: clientIds.web }),
+      }
+    : Platform.OS === 'android'
+    ? {
+        androidClientId: clientIds.android || 'dummy-android-client-id-not-configured',
+        ...(clientIds.web && { webClientId: clientIds.web }),
+      }
+    : {
+        webClientId: clientIds.web || 'dummy-web-client-id-not-configured',
+      };
+
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest(googleConfig);
 
 // ============================================================================
 // PRODUCTION HARDENING: API URL from environment
@@ -180,7 +196,14 @@ const getHeaders = () => ({
         let errorMessage = 'Login failed';
         try {
           const errorData = JSON.parse(text);
-          errorMessage = errorData.message || errorData.error || errorMessage;
+          // Check for validation details first (most specific error)
+          if (errorData.details && Array.isArray(errorData.details)) {
+            errorMessage = errorData.details.map((e: any) => e.msg || e.message).join(', ');
+          } else if (errorData.errors && Array.isArray(errorData.errors)) {
+            errorMessage = errorData.errors.map((e: any) => e.msg || e.message).join(', ');
+          } else {
+            errorMessage = errorData.message || errorData.error || errorMessage;
+          }
         } catch {
           errorMessage = text || errorMessage;
         }
@@ -198,6 +221,14 @@ const getHeaders = () => ({
       setToken(accessToken);
       setUser(userData);
       setAuthStatus('authenticated');
+      
+      // Track login in Firebase Analytics (use standard Firebase event names)
+      logEvent('login', { method: 'email' });
+      // Also log the user_signup event for better tracking
+      logEvent('user_login', { method: 'email', user_id: String(userData.id) });
+      // Set user in Firebase (this tracks users in Firebase Console)
+      setFirebaseUser(String(userData.id), userData.email, userData.name);
+      
       console.log('✅ [AUTH] Login successful');
       return true;
     } catch (err: any) {
@@ -225,9 +256,13 @@ const getHeaders = () => ({
         let errorMessage = 'Registration failed';
         try {
           const errorData = JSON.parse(text);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-          if (errorData.errors && Array.isArray(errorData.errors)) {
+          // Check for validation details first (most specific error)
+          if (errorData.details && Array.isArray(errorData.details)) {
+            errorMessage = errorData.details.map((e: any) => e.msg || e.message).join(', ');
+          } else if (errorData.errors && Array.isArray(errorData.errors)) {
             errorMessage = errorData.errors.map((e: any) => e.msg || e.message).join(', ');
+          } else {
+            errorMessage = errorData.message || errorData.error || errorMessage;
           }
         } catch {
           errorMessage = text || errorMessage;
@@ -246,6 +281,14 @@ const getHeaders = () => ({
       setToken(accessToken);
       setUser(userData);
       setAuthStatus('authenticated');
+      
+      // Track signup in Firebase Analytics (use standard Firebase event names)
+      logEvent('sign_up', { method: 'email' });
+      // Also log custom event for better tracking
+      logEvent('user_signup', { method: 'email', user_id: String(userData.id) });
+      // Set user in Firebase (this tracks users in Firebase Console)
+      setFirebaseUser(String(userData.id), userData.email, userData.name);
+      
       console.log('✅ [AUTH] Signup successful');
       return true;
     } catch (err: any) {
@@ -267,8 +310,12 @@ const getHeaders = () => ({
 
     try {
       // Check if Google OAuth is configured
-      if (!clientIds.web && !clientIds.ios && !clientIds.android) {
-        setError('Google Sign-In is not configured. Please set EXPO_PUBLIC_GOOGLE_CLIENT_ID');
+      if (!hasGoogleConfig) {
+        Alert.alert(
+          'Google Sign-In Not Configured',
+          'Google Sign-In requires OAuth credentials. Please set EXPO_PUBLIC_GOOGLE_CLIENT_ID in your environment variables.',
+          [{ text: 'OK' }]
+        );
         setAuthStatus('unauthenticated');
         return false;
       }
@@ -423,6 +470,11 @@ const getHeaders = () => ({
       // ALWAYS clear local auth data regardless of backend response
       await clearAllAuthData();
       setAuthStatus('unauthenticated');
+      
+      // Track logout in Firebase Analytics
+      logEvent('user_logout');
+      clearFirebaseUser();
+      
       console.log('✅ [AUTH] Logout complete');
     }
   };
