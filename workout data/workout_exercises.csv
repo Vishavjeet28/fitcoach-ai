@@ -1,0 +1,28 @@
+name,category,equipment,muscle_group,difficulty_level,met_value
+Bench Press,strength,barbell,chest,intermediate,5.0
+Incline Dumbbell Press,strength,dumbbell,chest,intermediate,4.8
+Push-Up,strength,bodyweight,chest,beginner,3.8
+Chest Fly (Dumbbell),strength,dumbbell,chest,intermediate,4.0
+Pull-Up,strength,bodyweight,back,advanced,6.0
+Lat Pulldown,strength,machine,back,beginner,4.5
+Barbell Row,strength,barbell,back,intermediate,5.5
+Seated Cable Row,strength,machine,back,intermediate,4.8
+Squat,strength,barbell,legs,intermediate,6.5
+Leg Press,strength,machine,legs,beginner,5.0
+Romanian Deadlift,strength,barbell,legs,intermediate,5.8
+Walking Lunges,strength,dumbbell,legs,beginner,4.2
+Overhead Press,strength,barbell,shoulders,intermediate,5.2
+Lateral Raise,strength,dumbbell,shoulders,beginner,3.5
+Front Raise,strength,dumbbell,shoulders,beginner,3.5
+Barbell Curl,strength,barbell,biceps,beginner,3.8
+Hammer Curl,strength,dumbbell,biceps,beginner,3.8
+Triceps Pushdown,strength,machine,triceps,beginner,4.0
+Skull Crushers,strength,barbell,triceps,intermediate,4.2
+Plank,core,bodyweight,core,beginner,3.0
+Hanging Leg Raise,core,bodyweight,core,advanced,4.0
+Russian Twist,core,bodyweight,core,beginner,4.0
+Sit-Up,core,bodyweight,core,beginner,3.8
+Treadmill Running (moderate),cardio,treadmill,cardio,intermediate,8.0
+Stationary Cycling (moderate),cardio,machine,cardio,beginner,7.0
+Jump Rope,cardio,bodyweight,cardio,advanced,10.0
+Rowing Machine (moderate),cardio,machine,cardio,intermediate,7.5

@@ -41,7 +41,7 @@ app.get('/api/users/:userId', (req, res) => {
 // Update user profile
 app.put('/api/users/:userId', (req, res) => {
   try {
-    const { name, weight, height, calorie_target, goal } = req.body;
+    const { name, weight, height, calorie_target, goal, push_token } = req.body;
     const stmt = db.prepare(`
       UPDATE users 
       SET name = COALESCE(?, name),
@@ -49,11 +49,12 @@ app.put('/api/users/:userId', (req, res) => {
           height = COALESCE(?, height),
           calorie_target = COALESCE(?, calorie_target),
           goal = COALESCE(?, goal),
+          push_token = COALESCE(?, push_token),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
     
-    const result = stmt.run(name, weight, height, calorie_target, goal, req.params.userId);
+    const result = stmt.run(name, weight, height, calorie_target, goal, push_token, req.params.userId);
     
     if (result.changes === 0) {
       return res.status(404).json({ error: 'User not found' });

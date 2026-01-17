@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../config/database.js';
+import { verifyFirebaseToken } from '../config/firebase.js';
+import FLE from '../services/fitnessLogicEngine.js';
 
 // Generate tokens
 const generateAccessToken = (userId) => {
@@ -39,6 +41,8 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
+      let profile_completed = false;
+
     // Check if user already exists
     const existingUser = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existingUser.rows.length > 0) {
@@ -60,14 +64,21 @@ export const register = async (req, res) => {
       }
 
       // Activity level multiplier
+     
+
       const activityMultipliers = {
         sedentary: 1.2,
-        light: 1.375,
+        lightly_active: 1.375, // snake_case
+        moderately_active: 1.55,
+        very_active: 1.725,
+        extremely_active: 1.9,
+        light: 1.375, // legacy/camelCase
         moderate: 1.55,
         active: 1.725,
         veryActive: 1.9
       };
-      const multiplier = activityMultipliers[activityLevel] || 1.5;
+      
+      const multiplier = activityMultipliers[activityLevel] || 1.55; // Default to moderate if not found
       let tdee = bmr * multiplier;
 
       // Adjust based on goal
@@ -78,6 +89,12 @@ export const register = async (req, res) => {
       }
 
       calorieTarget = Math.round(tdee);
+      console.log(`[AUTH] Calorie Calc: BMR=${bmr}, Multiplier=${multiplier}, TDEE=${tdee}, Target=${calorieTarget}`);
+    }
+
+    if (!calorieTarget || isNaN(calorieTarget) || calorieTarget < 500) {
+       console.warn(`[AUTH] Invalid calorie target calculated: ${calorieTarget}. Defaulting to 2000.`);
+       calorieTarget = 2000;
     }
 
     // Create user
@@ -208,6 +225,94 @@ export const login = async (req, res) => {
   }
 };
 
+// Login with Firebase Token
+export const firebaseLogin = async (req, res) => {
+  try {
+    const { idToken, pushToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: 'Firebase ID token required' });
+    }
+
+    // 1. Verify Token via Firebase Admin
+    const decodedToken = await verifyFirebaseToken(idToken);
+    const { email, name, email_verified } = decodedToken;
+
+    // 2. Strict Email Verification
+    if (!email_verified) {
+      return res.status(403).json({ 
+        error: 'Email not verified',
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Please verify your email address before logging in.'
+      });
+    }
+
+    // 3. Find or Create User
+    const result = await query(
+      `SELECT id, email, name, is_active, subscription_status, ai_usage_count FROM users WHERE email = $1`,
+      [email.toLowerCase()]
+    );
+
+    let user;
+    if (result.rows.length === 0) {
+      // Create new user (Federated identity)
+      const dummyHash = await bcrypt.hash(Math.random().toString(36), 10);
+      
+      const newUser = await query(
+        `INSERT INTO users (
+            email, password_hash, name, weight, height, age, gender,
+            activity_level, goal, calorie_target, subscription_status, ai_usage_count
+        ) VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NULL, 2000, 'free', 0)
+        RETURNING id, email, name, weight, height, age, gender, activity_level, goal, calorie_target, created_at, subscription_status, ai_usage_count`,
+        [email.toLowerCase(), dummyHash, name || 'User']
+      );
+      user = newUser.rows[0];
+    } else {
+      user = result.rows[0];
+      if (!user.is_active) {
+        return res.status(403).json({ error: 'Account is deactivated' });
+      }
+      await query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+    }
+
+    // 4. Generate Session Tokens
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    
+    await query(
+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, refreshToken, expiresAt]
+    );
+
+    // 5. Register Push Token if provided
+    if (pushToken) {
+       await query(`
+         INSERT INTO push_tokens (user_id, token, platform)
+         VALUES ($1, $2, 'unknown')
+         ON CONFLICT (user_id, token) DO UPDATE SET last_used_at = NOW()
+       `, [user.id, pushToken]);
+    }
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        subscriptionStatus: user.subscription_status,
+        aiUsageCount: user.ai_usage_count
+      },
+      accessToken,
+      refreshToken
+    });
+
+  } catch (error) {
+    console.error('Firebase login error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+};
+
 // Refresh access token
 export const refresh = async (req, res) => {
   try {
@@ -217,7 +322,7 @@ export const refresh = async (req, res) => {
     // Get user data
     const result = await query(
       `SELECT id, email, name, weight, height, age, gender,
-              activity_level, goal, calorie_target
+              activity_level, goal, calorie_target, subscription_status, ai_usage_count
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -244,7 +349,9 @@ export const refresh = async (req, res) => {
         gender: user.gender,
         activityLevel: user.activity_level,
         goal: user.goal,
-        calorieTarget: user.calorie_target
+        calorieTarget: user.calorie_target,
+        subscriptionStatus: user.subscription_status,
+        aiUsageCount: user.ai_usage_count
       }
     });
   } catch (error) {
@@ -256,7 +363,7 @@ export const refresh = async (req, res) => {
 // Logout user
 export const logout = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const { refreshToken, pushToken } = req.body;
 
     if (refreshToken) {
       // Revoke the refresh token
@@ -266,6 +373,14 @@ export const logout = async (req, res) => {
       );
     }
 
+    if (pushToken) {
+       // Remove push token for this device
+       await query(
+         'DELETE FROM push_tokens WHERE user_id = $1 AND token = $2',
+         [req.user.id, pushToken]
+       );
+    }
+
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
@@ -273,17 +388,96 @@ export const logout = async (req, res) => {
   }
 };
 
+/**
+ * CRITICAL: /api/auth/me - Get current user with profile_completed status
+ * 
+ * SINGLE SOURCE OF TRUTH for auth + onboarding state
+ * Backend DB is authoritative, NOT Firebase, NOT frontend cache
+ * 
+ * Returns:
+ * {
+ *   user: {
+ *     id, email, name, emailVerified,
+ *     profile_completed (BOOLEAN - controls onboarding),
+ *     profile_completed_at (TIMESTAMP)
+ *   }
+ * }
+ */
+export const getCurrentUser = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch ONLY from DB - never trust JWT or cache
+    const result = await query(
+      `SELECT 
+        id, 
+        email, 
+        name, 
+        email_verified as "emailVerified",
+        profile_completed, 
+        profile_completed_at as "profileCompletedAt",
+        age, 
+        gender,
+        height,
+        weight,
+        goal,
+        activity_level as "activityLevel",
+        calorie_target as "calorieTarget"
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // PRODUCTION RULE: Always trust DB, never cache frontend decisions
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: user.emailVerified,
+        profile_completed: user.profile_completed,
+        profileCompletedAt: user.profileCompletedAt,
+        age: user.age,
+        gender: user.gender,
+        height: user.height,
+        weight: user.weight,
+        goal: user.goal,
+        activityLevel: user.activityLevel,
+        calorieTarget: user.calorieTarget
+      }
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({ error: 'Failed to get user info' });
+  }
+};
+
 // Update user profile
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, weight, height, age, gender, activityLevel, goal, calorieTarget } = req.body;
+    const { name, weight, height, age, gender, activityLevel, goal, calorieTarget, push_token, profile_completed } = req.body;
+
+    // Handle push token separately (Device level)
+    if (push_token) {
+       await query(`
+         INSERT INTO push_tokens (user_id, token, platform)
+         VALUES ($1, $2, 'unknown')
+         ON CONFLICT (user_id, token) DO UPDATE SET last_used_at = NOW()
+       `, [userId, push_token]);
+    }
 
     // Build dynamic update query
     const updates = [];
     const values = [];
     let paramCount = 1;
 
+    /* push_token removed from users table updates */
     if (name !== undefined) {
       updates.push(`name = $${paramCount++}`);
       values.push(name);
@@ -316,6 +510,10 @@ export const updateProfile = async (req, res) => {
       updates.push(`calorie_target = $${paramCount++}`);
       values.push(calorieTarget);
     }
+    if (profile_completed !== undefined) {
+      updates.push(`profile_completed = $${paramCount++}`);
+      values.push(profile_completed);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -327,7 +525,7 @@ export const updateProfile = async (req, res) => {
     const result = await query(
       `UPDATE users SET ${updates.join(', ')}
        WHERE id = $${paramCount}
-       RETURNING id, email, name, weight, height, age, gender, activity_level, goal, calorie_target`,
+       RETURNING id, email, name, weight, height, age, gender, activity_level, goal, calorie_target, profile_completed`,
       values
     );
 
@@ -336,6 +534,20 @@ export const updateProfile = async (req, res) => {
     }
 
     const user = result.rows[0];
+
+    // Recalculate FLE targets if body metrics or goal changed
+    const fleFields = ['weight', 'height', 'age', 'gender', 'activityLevel', 'goal'];
+    const shouldRecalculate = fleFields.some(field => req.body[field] !== undefined);
+    
+    if (shouldRecalculate) {
+      try {
+        await FLE.updateUserTargetsInDB(userId);
+        console.log(`FLE targets recalculated for user ${userId}`);
+      } catch (fleError) {
+        console.error('FLE recalculation error:', fleError);
+        // Don't fail the request, FLE is a bonus
+      }
+    }
 
     res.json({
       message: 'Profile updated successfully',
@@ -349,7 +561,8 @@ export const updateProfile = async (req, res) => {
         gender: user.gender,
         activityLevel: user.activity_level,
         goal: user.goal,
-        calorieTarget: user.calorie_target
+        calorieTarget: user.calorie_target,
+        profile_completed: user.profile_completed
       }
     });
   } catch (error) {

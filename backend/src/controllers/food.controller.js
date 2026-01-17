@@ -58,34 +58,31 @@ export const logFood = async (req, res) => {
     const {
       foodId,
       customFoodName,
-      servings = 1.0,
-      mealType,
+      foodName, // Support standard field name
+      servingSize,
+      servingUnit,
       calories,
       protein,
       carbs,
       fat,
-      notes,
-      mealDate
+      fiber,
+      sugar,
+      mealType,
+      mealDate,
+      notes
     } = req.body;
 
-    // Validation
-    if (!foodId && !customFoodName) {
+    const nameToUse = customFoodName || foodName;  
+
+    // Validation (redundant if using validator middleware, but safety net)
+    if (!foodId && !nameToUse) {
       return res.status(400).json({ error: 'Either foodId or customFoodName is required' });
     }
 
-    if (!mealType) {
-      return res.status(400).json({ error: 'Meal type is required' });
-    }
+    let logResult;
 
-    const validMealTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
-    if (!validMealTypes.includes(mealType.toLowerCase())) {
-      return res.status(400).json({ error: 'Invalid meal type' });
-    }
-
-    // If foodId is provided, get nutrition info from database
-    let nutritionData = { calories, protein, carbs, fat };
-    
     if (foodId) {
+      // 1. Log existing food item
       const foodResult = await query(
         'SELECT calories, protein, carbs, fat FROM foods WHERE id = $1',
         [foodId]
@@ -97,44 +94,63 @@ export const logFood = async (req, res) => {
 
       const food = foodResult.rows[0];
       // Calculate nutrition based on servings
-      nutritionData = {
+      const nutritionData = {
         calories: Math.round(food.calories * servings),
         protein: (food.protein * servings).toFixed(2),
         carbs: (food.carbs * servings).toFixed(2),
         fat: (food.fat * servings).toFixed(2)
       };
-    } else if (!calories) {
-      return res.status(400).json({ error: 'Calories required for custom food' });
-    }
 
-    // Insert food log
-    const result = await query(
-      `INSERT INTO food_logs (
-        user_id, food_id, custom_food_name, servings, meal_type,
-        calories, protein, carbs, fat, notes, meal_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *`,
-      [
-        userId,
-        foodId || null,
-        customFoodName || null,
-        servings,
-        mealType.toLowerCase(),
-        nutritionData.calories,
-        nutritionData.protein || 0,
-        nutritionData.carbs || 0,
-        nutritionData.fat || 0,
-        notes || null,
-        mealDate || new Date().toISOString().split('T')[0]
-      ]
-    );
+      logResult = await query(
+        `INSERT INTO food_logs (
+          user_id, food_id, servings, meal_type,
+          calories, protein, carbs, fat, notes, meal_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *`,
+        [
+          userId,
+          foodId,
+          servings,
+          mealType.toLowerCase(),
+          nutritionData.calories,
+          nutritionData.protein || 0,
+          nutritionData.carbs || 0,
+          nutritionData.fat || 0,
+          notes || null,
+          mealDate || new Date().toISOString().split('T')[0]
+        ]
+      );
+    } else {
+      // 2. Log custom food entry
+      // NOTE: Schema does not support serving_size/unit/fiber/sugar directly in food_logs
+      // We set servings=1 for custom entry as the macros provided are total.
+      logResult = await query(
+        `INSERT INTO food_logs (
+          user_id, custom_food_name, servings,
+          calories, protein, carbs, fat,
+          meal_type, meal_date, logged_at, notes
+        ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, NOW(), $9)
+        RETURNING *`,
+        [
+          userId, 
+          nameToUse, 
+          calories, 
+          protein, 
+          carbs, 
+          fat, 
+          mealType, 
+          mealDate || new Date().toISOString().split('T')[0],
+          notes
+        ]
+      );
+    }
 
     // Update daily summary
     await updateDailySummary(userId, mealDate || new Date().toISOString().split('T')[0]);
 
     res.status(201).json({
       message: 'Food logged successfully',
-      log: result.rows[0]
+      log: logResult.rows[0]
     });
   } catch (error) {
     console.error('Log food error:', error);
@@ -387,12 +403,13 @@ async function updateDailySummary(userId, date) {
 
     const totals = result.rows[0];
 
-    // Get user's calorie target
+    // Get user's calorie target (prefer FLE-cached, fallback to manual, then default)
     const userResult = await query(
-      'SELECT calorie_target FROM users WHERE id = $1',
+      'SELECT tdee_cached, calorie_target FROM users WHERE id = $1',
       [userId]
     );
-    const calorieTarget = userResult.rows[0]?.calorie_target || 2000;
+    const user = userResult.rows[0];
+    const calorieTarget = user?.tdee_cached || user?.calorie_target || 2000;
 
     // Upsert daily summary
     await query(

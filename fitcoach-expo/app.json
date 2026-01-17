@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "entryPoint": "./index.ts",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -16,8 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fitcoach.ai",
-      "googleServicesFile": "./GoogleService-Info.plist",
-      "usesAppleSignIn": true
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,21 +25,38 @@
       "package": "com.fitcoach.ai",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "updates": {
+      "url": "https://u.expo.dev/project-id-placeholder",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "@react-native-firebase/app",
-      "@react-native-firebase/crashlytics"
+      "@react-native-firebase/crashlytics",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "scheme": "fitcoach",
     "extra": {
       "eas": {
         "projectId": "fitcoach-ai"
       },
-      "EXPO_PUBLIC_API_URL": "http://localhost:5001/api"
+      "EXPO_PUBLIC_API_URL": "http://192.168.1.4:5001/api"
     }
   }
 }

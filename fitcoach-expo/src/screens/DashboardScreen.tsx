@@ -4,156 +4,191 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  StatusBar,
   Image,
+  TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
+  StatusBar,
+  Dimensions,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useAuthReady, useAuth } from '../context/AuthContext';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { analyticsAPI, foodAPI, exerciseAPI, waterAPI, handleAPIError } from '../services/api';
+import { analyticsAPI, fitnessAPI, mealAPI, workoutAPI, waterAPI, handleAPIError } from '../services/api';
 import { logScreenView } from '../config/firebase';
+import { LineChart } from 'react-native-chart-kit';
+import Svg, { Circle, G } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
-
-const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
-  success: '#10B981',
-  purple: '#A855F7',
-  orange: '#FB7185',
+// Calm Theme Colors
+// Light Theme Colors (Standardized)
+const theme = {
+  bg: '#FAFAFA',
+  primary: '#26d9bb', // Teal
+  accentAmber: '#F59E0B',
+  accentPurple: '#A855F7',
+  accentGreen: '#10B981',
+  surface: '#FFFFFF',
+  textMain: '#1e293b', // Slate 800
+  textSub: '#64748b',   // Slate 500
+  border: '#e2e8f0',
+  shadowColor: 'rgba(0,0,0,0.05)',
+  blueLight: '#E0F2FE', // Light Blue for cards
+  orangeLight: '#FFFBEB', // Light Amber
 };
-
-type RootStackParamList = {
-  Main: undefined;
-  FoodLog: undefined;
-  ExerciseLog: undefined;
-  WaterLog: undefined;
-  Coach: undefined;
-  Profile: undefined;
-  History: undefined;
-};
-
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const DashboardScreen = () => {
-  const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuth();
-  const { isAuthReady } = useAuthReady();
+  const navigation = useNavigation<any>();
+  const { user, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Dashboard State
   const [dashboardData, setDashboardData] = useState({
-    user: { 
-      name: 'User',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face&auto=format'
-    },
-    dailyCalories: { 
-      consumed: 0, 
-      target: 2000, 
-      burned: 0,
-      remaining: 2000 
-    },
-    macros: {
-      protein: { consumed: 0, target: 150 },
-      carbs: { consumed: 0, target: 200 },
-      fat: { consumed: 0, target: 65 },
-    },
-    water: { consumed: 0, target: 3.0 },
+    calories: { consumed: 0, target: 2000, remaining: 2000 },
+    protein: { consumed: 0, target: 150, remaining: 150 },
+    water: { consumed: 0, target: 2500 }, // ml
+    steps: { count: 3240, target: 10000 }, // Mocked/Static for now as requested or until Step API exists
+    focus: {
+      workout: { completed: false, label: 'Morning Workout' },
+      breakfast: { completed: false, label: 'Eat Breakfast' },
+      lunch: { completed: false, label: 'Log Lunch', suggested: 'High protein bowl' },
+    }
   });
 
+  const [trends, setTrends] = useState<{
+    labels: string[];
+    calories: number[];
+    average: number;
+    macros: { p: number; c: number; f: number };
+  }>({
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    calories: [0, 0, 0, 0, 0, 0, 0],
+    average: 0,
+    macros: { p: 30, c: 40, f: 30 } // distribution %
+  });
+
+  // Calculate Progress Circle Props
+  const radius = 36;
+  const strokeWidth = 8;
+  const circumference = 2 * Math.PI * radius;
+
   const fetchDashboardData = async () => {
-    console.log('📊 [DASHBOARD] Fetching dashboard data...');
-    
-    // Check if we are in guest mode
-    if (user?.email === 'guest@fitcoach.ai') {
-        console.log('👤 [DASHBOARD] Guest mode detected - using local/mock data');
-        setLoading(false);
-        // We can just keep the default state which has zero values
-        // or load from local storage if needed
-        return;
-    }
-
     try {
-      // Fetch daily summary (contains all metrics in one call)
-      const dailyData = await analyticsAPI.getDailySummary();
-      const summary = dailyData.summary;
+      if (user?.email === 'guest@fitcoach.ai') {
+        // Guest Mode Data
+        setDashboardData({
+          calories: { consumed: 1200, target: 2100, remaining: 900 },
+          protein: { consumed: 95, target: 140, remaining: 45 },
+          water: { consumed: 1200, target: 2500 },
+          steps: { count: 5240, target: 10000 },
+          focus: {
+            workout: { completed: true, label: 'Morning Workout' },
+            breakfast: { completed: true, label: 'Eat Breakfast' },
+            lunch: { completed: false, label: 'Log Lunch', suggested: 'Chicken Salad' },
+          }
+        });
+        setTrends({
+          labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+          calories: [1800, 2100, 1950, 2000, 2200, 1900, 2150],
+          average: 2014,
+          macros: { p: 30, c: 45, f: 25 }
+        });
+        setLoading(false);
+        return;
+      }
 
-      const remaining = Math.max(0, summary.calorieTarget - summary.totalCalories + summary.totalExerciseCalories);
+      // 1. Fetch Daily Summary (Calories, Protein)
+      // We still use analyticsAPI for calories/protein, but will fetch Water separately as requested.
+      const dailySummary = await analyticsAPI.getDailySummary();
+      const summary = dailySummary.summary;
+
+      const calorieTarget = summary.calorieTarget || 2000;
+      const consumedCals = summary.totalCalories || 0;
+      const remainingCals = Math.max(0, calorieTarget - consumedCals);
+
+      const proteinTarget = 150; // Default or fetch from profile if available in summary
+      const consumedProtein = summary.totalProtein || 0;
+      const remainingProtein = Math.max(0, proteinTarget - consumedProtein);
+
+      // 2. Fetch Water Data (Explicitly using waterAPI)
+      let waterData = { total: 0, target: 2500 };
+      try {
+        const wRes = await waterAPI.getTotals();
+        if (wRes && wRes.totals) {
+          waterData.total = wRes.totals.amountMl || 0;
+          waterData.target = wRes.goal?.amountMl || 2500;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch water data', e);
+      }
+
+      // 3. Fetch Meals for Focus Status
+      const todayMeals = await mealAPI.getDailyWithRecommendations();
+      const focus = {
+        workout: { completed: false, label: 'Morning Workout' },
+        breakfast: { completed: false, label: 'Eat Breakfast' },
+        lunch: { completed: false, label: 'Log Lunch', suggested: 'Healthy Option' }
+      };
+
+      if (todayMeals && todayMeals.meals) {
+        // Check Breakfast Logged
+        if (todayMeals.meals.breakfast.logged.items.length > 0) {
+          focus.breakfast.completed = true;
+        }
+        // Check Lunch Logged
+        if (todayMeals.meals.lunch.logged.items.length > 0) {
+          focus.lunch.completed = true;
+        } else if (todayMeals.meals.lunch.recommendation) {
+          focus.lunch.suggested = todayMeals.meals.lunch.recommendation.foodItems?.[0]?.name || 'Suggested Meal';
+        }
+      }
+
+      // 4. Fetch Workout for Focus Status
+      try {
+        const workout = await workoutAPI.getTodayWorkout();
+        if (workout && (workout.completed || workout.data?.completed)) {
+          focus.workout.completed = true;
+        }
+      } catch (e) {
+        // No workout scheduled or error
+      }
 
       setDashboardData({
-        user: dashboardData.user, // Keep existing user data
-        dailyCalories: {
-          consumed: summary.totalCalories || 0,
-          target: summary.calorieTarget || 2000,
-          burned: summary.totalExerciseCalories || 0,
-          remaining: remaining,
-        },
-        macros: {
-          protein: { 
-            consumed: Math.round(summary.totalProtein || 0), 
-            target: Math.round((summary.calorieTarget * 0.3) / 4) // 30% of calories from protein
-          },
-          carbs: { 
-            consumed: Math.round(summary.totalCarbs || 0), 
-            target: Math.round((summary.calorieTarget * 0.4) / 4) // 40% of calories from carbs
-          },
-          fat: { 
-            consumed: Math.round(summary.totalFat || 0), 
-            target: Math.round((summary.calorieTarget * 0.3) / 9) // 30% of calories from fat
-          },
-        },
-        water: { 
-          consumed: (summary.totalWaterMl || 0) / 1000, // Convert ml to liters
-          target: (summary.waterTargetMl || 3000) / 1000,
-        },
+        calories: { consumed: consumedCals, target: calorieTarget, remaining: remainingCals },
+        protein: { consumed: consumedProtein, target: proteinTarget, remaining: remainingProtein },
+        water: { consumed: waterData.total, target: waterData.target },
+        steps: { count: 3240, target: 10000 }, // Placeholder
+        focus
       });
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
-      const errorMessage = handleAPIError(error);
-      
-      // Only show alert if it's not a session expired error (that's handled by AuthContext)
-      if (error?.code !== 'SESSION_EXPIRED') {
-        Alert.alert('Error Loading Data', errorMessage);
+
+      // 5. Fetch Trends
+      const weekly = await analyticsAPI.getWeeklyTrends();
+      if (weekly && weekly.dailyData) {
+        const labels = weekly.dailyData.map((d: any) => new Date(d.date).toLocaleDateString('en-US', { weekday: 'narrow' }));
+        const cals = weekly.dailyData.map((d: any) => d.calories || 0);
+        const avg = weekly.averages?.calories || 2000;
+        setTrends({
+          labels,
+          calories: cals,
+          average: avg,
+          macros: { p: 30, c: 40, f: 30 } // Placeholder distribution until backend sends explicit macro trend stats
+        });
       }
+
+    } catch (error) {
+      console.error(error);
+      handleAPIError(error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    StatusBar.setBarStyle('light-content');
-  }, []);
-
-  // Fetch data only when auth is ready
-  useEffect(() => {
-    if (isAuthReady) {
-      console.log('📊 [DASHBOARD] Auth ready, fetching dashboard data');
-      fetchDashboardData();
-    }
-  }, [isAuthReady]);
-
-  // Refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (isAuthReady) { 
-        fetchDashboardData();
-        logScreenView('Dashboard');
-      }
-    }, [isAuthReady])
+      if (!authLoading) fetchDashboardData();
+    }, [authLoading])
   );
 
   const onRefresh = () => {
@@ -161,713 +196,311 @@ const DashboardScreen = () => {
     fetchDashboardData();
   };
 
-  const handleLogFood = () => {
-    navigation.navigate('FoodLog');
-  };
-
-  const handleLogExercise = () => {
-    navigation.navigate('ExerciseLog');
-  };
-
-  const handleLogWater = () => {
-    navigation.navigate('WaterLog');
-  };
-
-  const handleAICoachPress = () => {
-    navigation.navigate('Coach');
-  };
-
-  if (loading) {
+  // Render Helpers
+  const renderProgressCircle = (progress: number, color: string, value: string | number) => {
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.textSecondary, { marginTop: 16 }]}>Loading your dashboard...</Text>
+      <View style={{ width: 100, height: 100, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width="100" height="100" viewBox="0 0 100 100">
+          {/* Background Circle */}
+          <Circle
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke="#F1F5F9"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          {/* Foreground Circle - Rotated -90deg */}
+          <G rotation="-90" origin="50, 50">
+            <Circle
+              cx="50"
+              cy="50"
+              r={radius}
+              stroke={color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+            />
+          </G>
+        </Svg>
+        <View style={{ position: 'absolute', alignItems: 'center' }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.textMain }}>{value}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={theme.primary} size="large" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.backgroundDark} />
-      
-      <ScrollView 
-        style={styles.scrollView} 
+      <StatusBar barStyle="dark-content" backgroundColor={theme.bg} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerDate}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()}</Text>
+          <Text style={styles.headerTitle}>Today</Text>
+        </View>
+        <Image
+          source={{ uri: 'https://via.placeholder.com/150' }}
+          style={styles.avatar}
+        />
+      </View>
+
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.avatarContainer}>
-              <Image source={{ uri: dashboardData.user.avatar }} style={styles.avatar} />
-              <View style={styles.avatarStatus}>
-                <View style={styles.avatarStatusDot} />
-              </View>
-            </View>
-            <View>
-              <Text style={styles.greeting}>HELLO, {dashboardData.user.name.toUpperCase()}</Text>
-              <Text style={styles.date}>Oct 24, Today</Text>
-            </View>
-          </View>
-          
-          <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Profile')}>
-            <MaterialCommunityIcons name="shield-lock-outline" size={20} color={colors.primary} />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Main Calorie Display */}
-        <View style={styles.heroSection}>
+        {/* Detailed Hero Cards */}
+        <View style={styles.heroRow}>
+          {/* Calories Card */}
           <View style={styles.heroCard}>
-            <View style={styles.calorieRingContainer}>
-              <View style={styles.calorieDisplay}>
-                <Text style={styles.ringLabel}>Remaining</Text>
-                <Text style={styles.ringValue}>{dashboardData.dailyCalories.remaining.toLocaleString()}</Text>
-                <View style={styles.ringBadge}>
-                  <Text style={styles.ringBadgeText}>kcal</Text>
-                </View>
-              </View>
-              
-              <View style={styles.ringLabels}>
-                <View style={styles.ringLabelLeft}>
-                  <View style={styles.ringLabelIndicator}>
-                    <View style={[styles.ringDot, { backgroundColor: colors.primary }]} />
-                    <Text style={styles.ringLabelText}>Eaten</Text>
-                  </View>
-                  <Text style={styles.ringLabelValue}>{dashboardData.dailyCalories.consumed.toLocaleString()}</Text>
-                </View>
-                <View style={styles.ringLabelRight}>
-                  <View style={styles.ringLabelIndicator}>
-                    <View style={[styles.ringDot, { backgroundColor: '#EF4444' }]} />
-                    <Text style={styles.ringLabelText}>Burned</Text>
-                  </View>
-                  <Text style={styles.ringLabelValue}>{dashboardData.dailyCalories.burned}</Text>
-                </View>
-              </View>
+            <View style={{ width: '100%', alignItems: 'center', marginBottom: 12 }}>
+              {/* Icon pos req fix */}
+              <MaterialCommunityIcons name="fire" size={24} color={theme.primary + '50'} style={{ position: 'absolute', right: 0, top: 0 }} />
+              {renderProgressCircle(
+                (dashboardData.calories.consumed / dashboardData.calories.target) * 100,
+                theme.primary,
+                dashboardData.calories.remaining
+              )}
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.cardLabel}>Calories Remaining</Text>
+              <Text style={styles.cardSubLabel}>kcal left</Text>
             </View>
           </View>
-        </View>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <View style={styles.quickActions}>
-            <TouchableOpacity style={styles.quickActionButton} activeOpacity={0.8} onPress={handleLogFood}>
-              <LinearGradient colors={[colors.success, '#059669']} style={styles.quickActionGradient}>
-                <MaterialCommunityIcons name="silverware-fork-knife" size={24} color="white" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Food</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionButton} activeOpacity={0.8} onPress={handleLogExercise}>
-              <LinearGradient colors={[colors.warning, '#D97706']} style={styles.quickActionGradient}>
-                <MaterialCommunityIcons name="dumbbell" size={24} color="white" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Exercise</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionButton} activeOpacity={0.8} onPress={handleLogWater}>
-              <LinearGradient colors={[colors.info, '#2563EB']} style={styles.quickActionGradient}>
-                <MaterialCommunityIcons name="water" size={24} color="white" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Water</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Daily Macros */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>DAILY MACROS</Text>
-          
-          <View style={styles.macroGrid}>
-            <View style={styles.macroCard}>
-              <View style={styles.macroHeader}>
-                <View style={[styles.macroIcon, { backgroundColor: `${colors.warning}20` }]}>
-                  <MaterialCommunityIcons name="egg" size={20} color={colors.warning} />
-                </View>
-                <Text style={styles.macroTitle}>Protein</Text>
-              </View>
-              
-              <View style={styles.macroContent}>
-                <View style={styles.macroValues}>
-                  <Text style={styles.macroValue}>{dashboardData.macros.protein.consumed}</Text>
-                  <Text style={styles.macroTarget}>/ {dashboardData.macros.protein.target}g</Text>
-                </View>
-                
-                <View style={styles.macroProgressContainer}>
-                  <View style={styles.macroProgressBackground}>
-                    <View style={[styles.macroProgress, { 
-                      width: `${Math.min((dashboardData.macros.protein.consumed / dashboardData.macros.protein.target) * 100, 100)}%`,
-                      backgroundColor: colors.warning,
-                    }]} />
-                  </View>
-                </View>
-              </View>
+          {/* Protein Card */}
+          <View style={styles.heroCard}>
+            <View style={{ width: '100%', alignItems: 'center', marginBottom: 12 }}>
+              <MaterialCommunityIcons name="egg" size={24} color={theme.primary + '50'} style={{ position: 'absolute', right: 0, top: 0 }} />
+              {renderProgressCircle(
+                (dashboardData.protein.consumed / dashboardData.protein.target) * 100,
+                theme.primary,
+                dashboardData.protein.remaining + 'g'
+              )}
             </View>
-
-            <View style={styles.macroCard}>
-              <View style={styles.macroHeader}>
-                <View style={[styles.macroIcon, { backgroundColor: `${colors.info}20` }]}>
-                  <MaterialCommunityIcons name="water" size={20} color={colors.info} />
-                </View>
-                <Text style={styles.macroTitle}>Hydration</Text>
-              </View>
-              
-              <View style={styles.macroContent}>
-                <View style={styles.macroValues}>
-                  <Text style={styles.macroValue}>{dashboardData.water.consumed.toFixed(1)}</Text>
-                  <Text style={styles.macroTarget}>/ {dashboardData.water.target}L</Text>
-                </View>
-                
-                <View style={styles.waterIndicators}>
-                  {[1, 2, 3, 4].map((drop, index) => (
-                    <View 
-                      key={index}
-                      style={[styles.waterDrop, { 
-                        backgroundColor: index < (dashboardData.water.consumed / dashboardData.water.target * 4) 
-                          ? colors.info 
-                          : `${colors.info}30` 
-                      }]} 
-                    />
-                  ))}
-                </View>
-              </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.cardLabel}>Protein Remaining</Text>
+              <Text style={styles.cardSubLabel}>grams left</Text>
             </View>
-          </View>
-          
-          <View style={styles.smallMacroRow}>
-            <TouchableOpacity style={styles.smallMacroCard} activeOpacity={0.7} onPress={handleLogFood}>
-              <View style={styles.smallMacroContent}>
-                <Text style={styles.smallMacroLabel}>CARBS</Text>
-                <Text style={styles.smallMacroValue}>{dashboardData.macros.carbs.consumed}g</Text>
-              </View>
-              <View style={styles.circleProgress}>
-                <Text style={styles.progressText}>
-                  {Math.round((dashboardData.macros.carbs.consumed / dashboardData.macros.carbs.target) * 100)}%
-                </Text>
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.smallMacroCard} activeOpacity={0.7} onPress={handleLogFood}>
-              <View style={styles.smallMacroContent}>
-                <Text style={styles.smallMacroLabel}>FAT</Text>
-                <Text style={styles.smallMacroValue}>{dashboardData.macros.fat.consumed}g</Text>
-              </View>
-              <View style={styles.circleProgress}>
-                <Text style={styles.progressText}>
-                  {Math.round((dashboardData.macros.fat.consumed / dashboardData.macros.fat.target) * 100)}%
-                </Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
 
         {/* Intake Trends */}
-        <View style={[styles.section, styles.lastSection]}>
-          <Text style={styles.sectionTitle}>INTAKE TRENDS</Text>
-          <TouchableOpacity 
-            style={styles.trendsCard} 
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('History')}
-          >
-            <View style={styles.trendsHeader}>
-              <View>
-                <Text style={styles.trendsSubtitle}>Weekly Average</Text>
-                <Text style={styles.trendsValue}>
-                  2,150 <Text style={styles.trendsUnit}>kcal</Text>
-                </Text>
-              </View>
-              <View style={styles.trendsLegend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-                  <Text style={styles.legendText}>In</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#6B7280' }]} />
-                  <Text style={styles.legendText}>Out</Text>
-                </View>
-              </View>
-            </View>
-            
-            <View style={styles.chartContainer}>
-              <Text style={styles.chartPlaceholder}>📈 Weekly Trends</Text>
-              <Text style={styles.chartSubtext}>Tap to view detailed history</Text>
-            </View>
-            
-            <View style={styles.chartLabels}>
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
-                <Text key={index} style={styles.chartLabel}>{day}</Text>
-              ))}
-            </View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Intake Trends</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
+            <Text style={styles.linkText}>Last 7 Days</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
 
-      {/* AI Coach FAB */}
-      <View style={styles.fabContainer}>
-        <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={handleAICoachPress}>
-          <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.fabGradient}>
-            <MaterialCommunityIcons name="robot-excited" size={28} color="white" />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+          {/* Calorie Trend Graph */}
+          <View style={[styles.graphCard, { marginRight: 16 }]}>
+            <View style={styles.graphHeader}>
+              <View>
+                <Text style={styles.graphLabel}>CALORIE TREND</Text>
+                <Text style={styles.graphValue}>{Math.round(trends.average)} Avg.</Text>
+              </View>
+              <View style={styles.trendIcon}>
+                <MaterialCommunityIcons name="trending-up" size={16} color={theme.primary} />
+              </View>
+            </View>
+            <LineChart
+              data={{
+                labels: [], // Clean look
+                datasets: [{ data: trends.calories.length > 0 ? trends.calories : [0, 0, 0, 0, 0, 0, 0] }]
+              }}
+              width={240}
+              height={80}
+              chartConfig={{
+                backgroundColor: 'transparent',
+                backgroundGradientFrom: theme.surface,
+                backgroundGradientTo: theme.surface,
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(80, 141, 247, ${opacity})`,
+                strokeWidth: 2,
+                propsForDots: { r: "0" } // No dots
+              }}
+              withInnerLines={false}
+              withOuterLines={false}
+              withHorizontalLabels={false}
+              withVerticalLabels={false}
+              bezier
+              style={{ paddingRight: 0, marginTop: 8 }}
+            />
+          </View>
+
+          {/* Macro Mix (Static Visual for now) */}
+          <View style={styles.graphCard}>
+            <View style={styles.graphHeader}>
+              <View>
+                <Text style={styles.graphLabel}>MACRO MIX</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <View style={styles.dotRow}><View style={[styles.dot, { backgroundColor: theme.primary }]} /><Text style={styles.dotText}>P</Text></View>
+                  <View style={styles.dotRow}><View style={[styles.dot, { backgroundColor: theme.accentAmber }]} /><Text style={styles.dotText}>C</Text></View>
+                  <View style={styles.dotRow}><View style={[styles.dot, { backgroundColor: theme.accentPurple }]} /><Text style={styles.dotText}>F</Text></View>
+                </View>
+              </View>
+            </View>
+            {/* Mock Macro Curves or distribution */}
+            <View style={{ height: 80, justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="chart-pie" size={48} color={theme.blueLight} />
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Daily Health Stats */}
+        <View style={styles.statsRow}>
+          {/* Hydration */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIcon, { backgroundColor: theme.blueLight }]}>
+              <MaterialCommunityIcons name="water" size={24} color={theme.primary} />
+            </View>
+            <View>
+              <Text style={styles.statValue}>{(dashboardData.water.consumed / 1000).toFixed(1)}L</Text>
+              <Text style={styles.statGoal}>{(dashboardData.water.target / 1000).toFixed(1)}L Goal</Text>
+            </View>
+          </View>
+          {/* Steps */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIcon, { backgroundColor: theme.orangeLight }]}>
+              <MaterialCommunityIcons name="shoe-print" size={24} color={theme.accentAmber} />
+            </View>
+            <View>
+              <Text style={styles.statValue}>{dashboardData.steps.count.toLocaleString()}</Text>
+              <Text style={styles.statGoal}>{(dashboardData.steps.target / 1000)}k Goal</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Today's Focus */}
+        <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
+          <Text style={styles.sectionTitle}>Today's Focus</Text>
+          <View style={{ gap: 12, marginTop: 12 }}>
+            {/* Item 1: Workout */}
+            <TouchableOpacity style={styles.focusItem} onPress={() => navigation.navigate('WorkoutPlanner')}>
+              <View style={[styles.checkCircle, dashboardData.focus.workout.completed ? styles.checked : styles.unchecked]}>
+                {dashboardData.focus.workout.completed && <MaterialCommunityIcons name="check" size={14} color="white" />}
+              </View>
+              <Text style={[styles.focusText, dashboardData.focus.workout.completed && styles.strikethrough]}>
+                {dashboardData.focus.workout.label}
+              </Text>
+              <MaterialCommunityIcons name="dumbbell" size={20} color={theme.textSub} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+            </TouchableOpacity>
+
+            {/* Item 2: Breakfast */}
+            <TouchableOpacity style={styles.focusItem} onPress={() => navigation.navigate('Food')}>
+              <View style={[styles.checkCircle, dashboardData.focus.breakfast.completed ? styles.checked : styles.unchecked]}>
+                {dashboardData.focus.breakfast.completed && <MaterialCommunityIcons name="check" size={14} color="white" />}
+              </View>
+              <Text style={[styles.focusText, dashboardData.focus.breakfast.completed && styles.strikethrough]}>
+                {dashboardData.focus.breakfast.label}
+              </Text>
+              <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={theme.textSub} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+            </TouchableOpacity>
+
+            {/* Item 3: Lunch */}
+            <TouchableOpacity
+              style={[styles.focusItem, !dashboardData.focus.lunch.completed ? styles.activeFocus : null]}
+              onPress={() => navigation.navigate('Today')}
+            >
+              <View style={[styles.checkCircle, dashboardData.focus.lunch.completed ? styles.checked : styles.unchecked]}>
+                {dashboardData.focus.lunch.completed && <MaterialCommunityIcons name="check" size={14} color="white" />}
+              </View>
+              <View>
+                <Text style={dashboardData.focus.lunch.completed ? styles.focusText : styles.focusTextActive}>{dashboardData.focus.lunch.label}</Text>
+                {!dashboardData.focus.lunch.completed && (
+                  <Text style={styles.focusSubText}>Suggested: {dashboardData.focus.lunch.suggested}</Text>
+                )}
+              </View>
+              <MaterialCommunityIcons name="pencil" size={20} color={dashboardData.focus.lunch.completed ? theme.textSub : theme.primary} style={{ marginLeft: 'auto', opacity: dashboardData.focus.lunch.completed ? 0.5 : 1 }} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundDark,
-  },
-  centerContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textSecondary: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 120,
-  },
-  
+  container: { flex: 1, backgroundColor: theme.bg },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 24,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 20,
+    backgroundColor: theme.bg
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  avatarStatus: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: colors.backgroundDark,
-    borderRadius: 8,
-    padding: 1,
-  },
-  avatarStatusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-  },
-  greeting: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-  },
-  date: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    position: 'relative',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
-  },
+  headerDate: { fontSize: 13, fontWeight: '600', color: theme.textSub, letterSpacing: 0.5 },
+  headerTitle: { fontSize: 32, fontWeight: '800', color: theme.textMain, marginTop: 4 },
+  avatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: theme.surface },
 
-  heroSection: {
-    paddingHorizontal: 24,
-    paddingBottom: 8,
-  },
+  heroRow: { flexDirection: 'row', gap: 16, paddingHorizontal: 24, marginBottom: 24 },
   heroCard: {
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 12,
+    flex: 1, backgroundColor: theme.surface, borderRadius: 24, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4,
+    justifyContent: 'space-between'
   },
+  cardLabel: { fontSize: 14, fontWeight: '600', color: theme.textSub },
+  cardSubLabel: { fontSize: 12, fontWeight: '700', color: theme.primary, marginTop: 2 },
 
-  calorieRingContainer: {
-    alignItems: 'center',
-  },
-  calorieDisplay: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  ringLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-  },
-  ringValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    letterSpacing: -2,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  ringBadge: {
-    backgroundColor: `${colors.primary}20`,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: `${colors.primary}40`,
-  },
-  ringBadgeText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  ringLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 8,
-  },
-  ringLabelLeft: {
-    alignItems: 'flex-start',
-  },
-  ringLabelRight: {
-    alignItems: 'flex-end',
-  },
-  ringLabelIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  ringDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  ringLabelText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  ringLabelValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: theme.textMain },
+  linkText: { fontSize: 14, fontWeight: '600', color: theme.primary },
 
-  section: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+  graphCard: {
+    width: 280, height: 160, backgroundColor: theme.surface, borderRadius: 24, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4,
+    justifyContent: 'space-between'
   },
-  lastSection: {
-    paddingBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: 16,
-  },
+  graphHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  graphLabel: { fontSize: 12, fontWeight: '700', color: theme.textSub, letterSpacing: 0.5 },
+  graphValue: { fontSize: 20, fontWeight: '800', color: theme.textMain, marginTop: 4 },
+  trendIcon: { padding: 4, backgroundColor: theme.blueLight, borderRadius: 50 },
 
-  quickActions: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  quickActionButton: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  quickActionGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  quickActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
+  dotRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotText: { fontSize: 12, fontWeight: '600', color: theme.textSub },
 
-  macroGrid: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 16,
+  statsRow: { flexDirection: 'row', gap: 16, paddingHorizontal: 24, marginTop: 8 },
+  statCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: theme.surface, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4,
   },
-  macroCard: {
-    flex: 1,
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 16,
-    padding: 20,
-    height: 160,
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  macroHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  macroIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  macroTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-  },
-  macroContent: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  macroValues: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    marginBottom: 8,
-  },
-  macroValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  macroTarget: {
-    fontSize: 14,
-    color: colors.textTertiary,
-    marginBottom: 4,
-  },
-  macroProgressContainer: {
-    marginTop: 4,
-  },
-  macroProgressBackground: {
-    height: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  macroProgress: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  waterIndicators: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 8,
-  },
-  waterDrop: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+  statIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 18, fontWeight: '800', color: theme.textMain },
+  statGoal: { fontSize: 12, fontWeight: '600', color: theme.textSub },
 
-  smallMacroRow: {
-    flexDirection: 'row',
-    gap: 16,
+  focusItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    backgroundColor: theme.surface, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 12, elevation: 2,
   },
-  smallMacroCard: {
-    flex: 1,
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+  activeFocus: {
+    borderWidth: 1, borderColor: theme.primary + '30', // Transparent blue
+    shadowColor: theme.primary, shadowOpacity: 0.1,
+    elevation: 4
   },
-  smallMacroContent: {
-    flex: 1,
-  },
-  smallMacroLabel: {
-    fontSize: 10,
-    color: colors.textTertiary,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  smallMacroValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-  circleProgress: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressText: {
-    fontSize: 10,
-    color: colors.textPrimary,
-    fontWeight: 'bold',
-  },
-
-  trendsCard: {
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  trendsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  trendsSubtitle: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginBottom: 4,
-  },
-  trendsValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  trendsUnit: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: 'normal',
-  },
-  trendsLegend: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  chartContainer: {
-    height: 128,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  chartPlaceholder: {
-    color: colors.textTertiary,
-    fontSize: 16,
-  },
-  chartSubtext: {
-    color: colors.textTertiary,
-    fontSize: 11,
-    marginTop: 4,
-    opacity: 0.6,
-  },
-  chartLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  chartLabel: {
-    fontSize: 10,
-    color: colors.textTertiary,
-    fontWeight: '500',
-  },
-
-  fabContainer: {
-    position: 'absolute',
-    bottom: 96,
-    right: 24,
-    zIndex: 50,
-  },
-  fab: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-  fabGradient: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 15,
-    elevation: 15,
-  },
+  checkCircle: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  checked: { backgroundColor: theme.accentGreen },
+  unchecked: { borderWidth: 2, borderColor: theme.textSub + '40' }, // lighter border
+  focusText: { fontSize: 16, fontWeight: '600', color: theme.textSub },
+  strikethrough: { textDecorationLine: 'line-through', opacity: 0.6 },
+  focusTextActive: { fontSize: 16, fontWeight: '700', color: theme.textMain },
+  focusSubText: { fontSize: 12, color: theme.textSub, marginTop: 2 },
 });
 
 export default DashboardScreen;

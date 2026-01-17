@@ -1,4 +1,5 @@
 import { query } from '../config/database.js';
+import FLE from '../services/fitnessLogicEngine.js';
 
 // Get user's exercise logs
 export const getExerciseLogs = async (req, res) => {
@@ -59,6 +60,7 @@ export const logExercise = async (req, res) => {
       reps,
       weightKg,
       distanceKm,
+      caloriesBurned: providedCalories, // Rename to avoid conflict with local var
       intensity = 'moderate',
       notes,
       workoutDate
@@ -74,9 +76,9 @@ export const logExercise = async (req, res) => {
     }
 
     // Calculate calories burned
-    let caloriesBurned = 0;
+    let caloriesBurned = providedCalories || 0;
     
-    if (exerciseId) {
+    if (exerciseId && !providedCalories) {
       const exerciseResult = await query(
         'SELECT met_value FROM exercises WHERE id = $1',
         [exerciseId]
@@ -97,7 +99,7 @@ export const logExercise = async (req, res) => {
       
       // Calories = MET × weight(kg) × time(hours)
       caloriesBurned = Math.round(metValue * userWeight * (durationMinutes / 60));
-    } else {
+    } else if (!providedCalories) {
       // Estimate for custom exercise based on intensity
       const userResult = await query(
         'SELECT weight FROM users WHERE id = $1',

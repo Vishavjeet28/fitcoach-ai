@@ -35,7 +35,7 @@ const colors = {
   }
 
   export default function AuthScreen() {
-    const { login, signup, loginWithGoogle, loginWithApple, continueAsGuest, error, clearError, isLoading } = useAuth();
+    const { login, signup, continueAsGuest, error, clearError, isLoading } = useAuth();
 
     const [mode, setMode] = useState<Mode>('login');
     const isLogin = mode === 'login';
@@ -242,44 +242,6 @@ const colors = {
               </Text>
             </Pressable>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <Pressable
-              onPress={async () => {
-                setSubmitting(true);
-                const success = await loginWithGoogle();
-                if (!success && error) {
-                  Alert.alert('Google Sign-In', error);
-                }
-                setSubmitting(false);
-              }}
-              disabled={busy}
-              style={({ pressed }) => [styles.oauthButton, styles.googleButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.oauthButtonText, { color: '#1F2937' }]}>🔍 Continue with Google</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={async () => {
-                setSubmitting(true);
-                const success = await loginWithApple();
-                if (!success && error) {
-                  Alert.alert('Apple Sign-In', error);
-                }
-                setSubmitting(false);
-              }}
-              disabled={busy}
-              style={({ pressed }) => [styles.oauthButton, styles.appleButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.oauthButtonText, { color: '#FFFFFF' }]}>🍎 Continue with Apple</Text>
-            </Pressable>
-
             <Pressable
               onPress={handleGuest}
               disabled={busy}
@@ -436,26 +398,6 @@ const colors = {
     },
     secondaryButtonText: {
       color: colors.textPrimary,
-      fontWeight: '700',
-      fontSize: 14,
-    },
-    oauthButton: {
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 10,
-      borderWidth: 1,
-    },
-    googleButton: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#E5E7EB',
-    },
-    appleButton: {
-      backgroundColor: '#000000',
-      borderColor: '#1F2937',
-    },
-    oauthButtonText: {
       fontWeight: '700',
       fontSize: 14,
     },

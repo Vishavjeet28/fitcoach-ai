@@ -6,14 +6,24 @@ export const logExerciseValidator = [
     .isInt({ min: 1 })
     .withMessage('Exercise ID must be a positive integer'),
   
-  body('exerciseName')
+  body('customExerciseName')
+    .optional()
     .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('Exercise name must be between 1 and 200 characters'),
+
+  body('exerciseName') // Alias for validator backwards compatibility
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 200 }),
   
-  body('duration')
+  body('durationMinutes')
     .isInt({ min: 1, max: 1440 })
     .withMessage('Duration must be between 1 and 1440 minutes'),
+
+  body('duration') // Alias
+    .optional()
+    .isInt({ min: 1, max: 1440 }),
   
   body('intensity')
     .optional()

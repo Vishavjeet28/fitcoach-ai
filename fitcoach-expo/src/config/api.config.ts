@@ -99,7 +99,7 @@ export const API_BASE_URL = (() => {
   return url;
 })();
 
-export const API_TIMEOUT = 30000; // 30 seconds
+export const API_TIMEOUT = 60000; // 60 seconds (increased for slower networks)
 
 // Token storage keys (alphanumeric, dots, dashes, underscores only)
 export const TOKEN_STORAGE = {

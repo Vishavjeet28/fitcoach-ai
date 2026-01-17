@@ -1,6 +1,6 @@
 // For local testing, use your Mac's IP address instead of localhost
 // Find it with: ifconfig | grep "inet " | grep -v 127.0.0.1
-const API_BASE_URL = 'http://192.168.31.240:3001/api';
+const API_BASE_URL = 'http://192.168.31.240:5001/api';
 
 // Default user ID (in a real app, this would come from authentication)
 const DEFAULT_USER_ID = 1;
@@ -156,6 +156,114 @@ class API {
   static async getDashboard(userId = DEFAULT_USER_ID) {
     const response = await fetch(`${API_BASE_URL}/dashboard/${userId}`);
     if (!response.ok) throw new Error('Failed to fetch dashboard');
+    return response.json();
+  }
+
+  // ============================================================================
+  // NEW ENDPOINTS FOR TODAY SCREEN & WORKOUT/MEAL SYSTEMS
+  // ============================================================================
+
+  // Daily Nutrition Status
+  static async getDailyNutrition(date: string, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/analytics/daily?user_id=${userId}&date=${date}`);
+    if (!response.ok) throw new Error('Failed to fetch daily nutrition');
+    return response.json();
+  }
+
+  // Get daily meals by meal type
+  static async getDailyMeals(date: string, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/meals/daily?user_id=${userId}&date=${date}`);
+    if (!response.ok) throw new Error('Failed to fetch daily meals');
+    return response.json();
+  }
+
+  // Workout System APIs
+  static async getTodayWorkout(userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/workout/daily?user_id=${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch today\'s workout');
+    return response.json();
+  }
+
+  static async getWorkoutTemplates() {
+    const response = await fetch(`${API_BASE_URL}/workout/templates`);
+    if (!response.ok) throw new Error('Failed to fetch workout templates');
+    return response.json();
+  }
+
+  static async recommendWorkoutProgram(userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/workout/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    if (!response.ok) throw new Error('Failed to recommend workout program');
+    return response.json();
+  }
+
+  static async logWorkoutSession(sessionData: any, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/workout/log-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...sessionData, user_id: userId })
+    });
+    if (!response.ok) throw new Error('Failed to log workout session');
+    return response.json();
+  }
+
+  static async getWorkoutHistory(userId = DEFAULT_USER_ID, limit = 10) {
+    const response = await fetch(`${API_BASE_URL}/workout/history?user_id=${userId}&limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch workout history');
+    return response.json();
+  }
+
+  // Meal Recommendation System APIs
+  static async getMealRecommendation(mealType: string, date: string, preferences: any = {}, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/meal-recommendations/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        meal_type: mealType,
+        date: date,
+        preferences: preferences
+      })
+    });
+    if (!response.ok) throw new Error('Failed to get meal recommendation');
+    return response.json();
+  }
+
+  static async getRemainingMacros(date: string, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/meal-recommendations/remaining?user_id=${userId}&date=${date}`);
+    if (!response.ok) throw new Error('Failed to fetch remaining macros');
+    return response.json();
+  }
+
+  static async swapMealMacros(swapData: any, userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/meal-recommendations/swap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...swapData, user_id: userId })
+    });
+    if (!response.ok) throw new Error('Failed to swap meal macros');
+    return response.json();
+  }
+
+  // Analytics APIs
+  static async getWeeklyAnalytics(userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/analytics/weekly?user_id=${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch weekly analytics');
+    return response.json();
+  }
+
+  static async getMonthlyAnalytics(userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/analytics/monthly?user_id=${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch monthly analytics');
+    return response.json();
+  }
+
+  static async getYearlyAnalytics(userId = DEFAULT_USER_ID) {
+    const response = await fetch(`${API_BASE_URL}/analytics/yearly?user_id=${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch yearly analytics');
     return response.json();
   }
 }

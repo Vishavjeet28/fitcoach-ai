@@ -19,17 +19,18 @@ import { exerciseAPI, handleAPIError } from '../services/api';
 import apiClient from '../services/api';
 
 const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
+  primary: '#26d9bb', // Teal
+  primaryDark: '#1fbda1',
+  backgroundDark: '#FAFAFA', // Light BG
+  surfaceDark: '#FFFFFF',    // White Surface
+  textPrimary: '#1e293b',    // Slate 800
+  textSecondary: '#64748b',  // Slate 500
+  textTertiary: '#94a3b8',   // Slate 400
+  warning: '#F59E0B',
+  info: '#3B82F6',
   success: '#10B981',
   error: '#EF4444',
+  border: '#e2e8f0',
 };
 
 const ExerciseLogScreen = () => {
@@ -61,7 +62,7 @@ const ExerciseLogScreen = () => {
       setLoading(true);
 
       const durationValue = parseInt(duration);
-      
+
       const payload = {
         exerciseName: exerciseName.trim(),
         customExerciseName: exerciseName.trim(),
@@ -79,7 +80,7 @@ const ExerciseLogScreen = () => {
     } catch (error: any) {
       console.error('Error saving exercise:', error);
       console.error('Error response:', error.response?.data);
-      
+
       const errorMessage = handleAPIError(error);
       Alert.alert('Save Failed', `${errorMessage}\n\n(Status: ${error.response?.status || 'Unknown'})`);
     } finally {
@@ -93,23 +94,23 @@ const ExerciseLogScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.backgroundDark} />
-      
+      <StatusBar barStyle="dark-content" backgroundColor={colors.backgroundDark} />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Log Exercise</Text>
           <Text style={styles.headerSubtitle}>Track your workout</Text>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.aiButton}
           onPress={handleAskAI}
         >
@@ -117,17 +118,17 @@ const ExerciseLogScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
           {/* Quick AI Assistant Banner */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.aiAssistantBanner}
             onPress={handleAskAI}
             activeOpacity={0.8}
@@ -162,10 +163,10 @@ const ExerciseLogScreen = () => {
                   activeOpacity={0.8}
                 >
                   <View style={[styles.typeIcon, { backgroundColor: type.color + '20' }]}>
-                    <MaterialCommunityIcons 
-                      name={type.icon} 
-                      size={24} 
-                      color={exerciseType === type.id ? type.color : colors.textTertiary} 
+                    <MaterialCommunityIcons
+                      name={type.icon as any}
+                      size={24}
+                      color={exerciseType === type.id ? type.color : colors.textTertiary}
                     />
                   </View>
                   <Text style={[
@@ -187,7 +188,7 @@ const ExerciseLogScreen = () => {
           {/* Exercise Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>EXERCISE DETAILS</Text>
-            
+
             <View style={styles.inputContainer}>
               <View style={styles.inputLabel}>
                 <MaterialCommunityIcons name="clipboard-text" size={20} color={colors.primary} />
@@ -280,10 +281,10 @@ const ExerciseLogScreen = () => {
                     setExerciseType(item.type);
                   }}
                 >
-                  <MaterialCommunityIcons 
-                    name={item.icon} 
-                    size={32} 
-                    color={colors.warning} 
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={32}
+                    color={colors.warning}
                   />
                   <Text style={styles.quickAddName}>{item.name}</Text>
                   <Text style={styles.quickAddCal}>-{item.cal} kcal</Text>
@@ -334,8 +335,8 @@ const ExerciseLogScreen = () => {
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={(!exerciseName || !duration) 
-              ? [colors.textTertiary, colors.textTertiary] 
+            colors={(!exerciseName || !duration)
+              ? [colors.textTertiary, colors.textTertiary]
               : [colors.warning, '#D97706']
             }
             style={styles.saveButtonGradient}
@@ -372,7 +373,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   headerCenter: {
     flex: 1,
@@ -471,7 +472,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
     position: 'relative',
   },
   typeCardActive: {
@@ -530,7 +531,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
 
   intensityRow: {
@@ -544,7 +545,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   intensityCardActive: {
     backgroundColor: colors.primary + '10',
@@ -568,7 +569,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   quickAddName: {
     fontSize: 12,

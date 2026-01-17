@@ -95,7 +95,34 @@ export const getPersonalizedInsights = async (userData) => {
   try {
     const provider = getAIProvider();
 
-    const { calorieIntake, calorieTarget, exerciseMinutes, waterIntake, goal, recentTrend } = userData;
+    const {
+      calorieIntake,
+      calorieTarget,
+      exerciseMinutes,
+      waterIntake,
+      goal,
+      recentTrend,
+      // New FLE context fields
+      netCalories,
+      proteinGap,
+      carbGap,
+      fatGap,
+      weightTrend,
+      complianceScore,
+      status
+    } = userData;
+
+    // Build comprehensive context for AI
+    const fleContext = netCalories !== undefined ? `
+FLE Analysis:
+- Net Calories: ${netCalories} (Eaten - Burned)
+- Status: ${status || 'unknown'}
+- Protein Gap: ${proteinGap || 0}g (negative = need more)
+- Carb Gap: ${carbGap || 0}g
+- Fat Gap: ${fatGap || 0}g
+- Weight Trend: ${weightTrend || 'stable'}
+- Logging Compliance: ${complianceScore || 0}%
+` : '';
 
     const prompt = `You are a fitness coach AI. Analyze this user's recent activity and provide personalized insights:
 
@@ -105,6 +132,12 @@ User Data:
 - Water intake: ${waterIntake} ml (target: 3000 ml)
 - Fitness goal: ${goal}
 - Recent trend: ${recentTrend}
+${fleContext}
+
+IMPORTANT: Your insights MUST align with the Fitness Logic Engine analysis above.
+DO NOT contradict the calorie targets or macro gaps.
+If the user is under target, encourage them to eat more.
+If the user is over target, suggest adjustments.
 
 Provide:
 1. Overall assessment (1-2 sentences)
@@ -133,8 +166,35 @@ Keep it encouraging and practical. Format as JSON:
 export const askFitnessQuestion = async (question, userContext = {}) => {
   try {
     const provider = getAIProvider();
-    const contextInfo = Object.keys(userContext).length > 0 ? `\n\nUser context: ${JSON.stringify(userContext)}` : '';
-    const prompt = `You are a knowledgeable fitness and nutrition coach. Answer this question clearly and concisely:\n\n"${question}"${contextInfo}\n\nProvide practical, evidence-based advice. Keep it under 200 words.`;
+
+    // Enhanced context with FLE data
+    let contextInfo = '';
+    if (Object.keys(userContext).length > 0) {
+      contextInfo = `\n\nUser context:
+- Goal: ${userContext.goal || 'not set'}
+- Calorie Target: ${userContext.calorieTarget || 'not set'}
+- Net Calories Today: ${userContext.netCalories || 'not tracked'}
+- Weight: ${userContext.weight || 'not set'}kg
+- Activity Level: ${userContext.activityLevel || 'not set'}`;
+
+      if (userContext.aiContext) {
+        contextInfo += `\n- Today's Status: ${userContext.aiContext.status || 'unknown'}`;
+        contextInfo += `\n- Calorie Gap: ${userContext.aiContext.calorie_gap || 0}`;
+        contextInfo += `\n- Protein Gap: ${userContext.aiContext.protein_gap || 0}g`;
+      }
+    }
+
+    const prompt = `You are a knowledgeable fitness and nutrition coach. Answer this question clearly and concisely:
+
+"${question}"
+${contextInfo}
+
+RULES:
+1. Provide practical, evidence-based advice
+2. Keep it under 200 words
+3. If the user has calorie/macro targets, respect them in your advice
+4. NEVER recommend extreme diets or dangerous practices
+5. If unsure, recommend consulting a healthcare professional`;
 
     const text = await provider.generateText(prompt);
     return { answer: text };
@@ -145,10 +205,22 @@ export const askFitnessQuestion = async (question, userContext = {}) => {
   }
 };
 
+export const chat = async (prompt, userId) => {
+  try {
+    const provider = getAIProvider();
+    const text = await provider.generateText(prompt);
+    return text;
+  } catch (error) {
+    console.error('AI API error:', error);
+    throw new Error('Failed to generate chat response: ' + error.message);
+  }
+};
+
 export default {
   getProvider: () => getAIProvider(),
   getMealSuggestions,
   recognizeFood,
   getPersonalizedInsights,
   askFitnessQuestion,
+  chat,
 };

@@ -1,7 +1,9 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import {
+  setupProfile, // NEW: One-time profile setup
   getUserProfile,
+  updateUserProfile,
   exportUserData,
   deleteUserData,
   updateUserPreferences,
@@ -19,8 +21,12 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
+// Profile setup - ONE TIME ONLY
+router.post('/profile-setup', setupProfile); // CRITICAL: One-time setup with 409 conflict handling
+
 // User profile and preferences
 router.get('/profile', getUserProfile);
+router.patch('/profile', updateUserProfile);
 router.patch('/preferences', updatePreferencesValidator, validate, updateUserPreferences);
 router.get('/stats', getAccountStats);
 

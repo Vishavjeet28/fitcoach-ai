@@ -187,6 +187,9 @@ class AIService {
       logger.error('AI chat failed', error);
       
       // Handle specific error types
+      if (error.response?.status === 403 && error.response?.data?.code === 'LIMIT_REACHED') {
+        throw new Error('Free limit reached');
+      }
       if (error.response?.status === 429) {
         throw new Error('Too many requests. Please try again later.');
       }
@@ -232,6 +235,9 @@ class AIService {
     } catch (error: any) {
       logger.error('AI chat failed', error);
       
+      if (error.response?.status === 403 && error.response?.data?.code === 'LIMIT_REACHED') {
+        throw new Error('Free limit reached');
+      }
       if (error.response?.status === 429) {
         throw new Error('Too many requests. Please try again later.');
       }
@@ -269,6 +275,9 @@ class AIService {
     } catch (error: any) {
       logger.error('AI insights failed', error);
       
+      if (error.response?.status === 403 && error.response?.data?.code === 'LIMIT_REACHED') {
+        throw new Error('Free limit reached');
+      }
       if (error.response?.status === 429) {
         throw new Error('Too many requests. Please try again later.');
       }
@@ -307,6 +316,9 @@ class AIService {
     } catch (error: any) {
       logger.error('AI meal suggestions failed', error);
       
+      if (error.response?.status === 403 && error.response?.data?.code === 'LIMIT_REACHED') {
+        throw new Error('Free limit reached');
+      }
       if (error.response?.status === 429) {
         throw new Error('Too many requests. Please try again later.');
       }
@@ -349,6 +361,9 @@ class AIService {
     } catch (error: any) {
       logger.error('AI food analysis failed', error);
       
+      if (error.response?.status === 403 && error.response?.data?.code === 'LIMIT_REACHED') {
+        throw new Error('Free limit reached');
+      }
       if (error.response?.status === 429) {
         throw new Error('Too many requests. Please try again later.');
       }

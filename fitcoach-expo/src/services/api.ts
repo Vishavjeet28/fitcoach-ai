@@ -29,8 +29,8 @@ const createRequestId = () => {
 // ============================================================================
 // PRODUCTION HARDENING: Retry Logic
 // ============================================================================
-const MAX_RETRIES = 1; // Single retry only
-const RETRY_DELAY = 1000; // 1 second
+const MAX_RETRIES = 2; // Two retries for better reliability
+const RETRY_DELAY = 2000; // 2 seconds
 
 const shouldRetry = (error: AxiosError): boolean => {
   // Only retry on network errors or 5xx server errors
@@ -123,11 +123,11 @@ apiClient.interceptors.request.use(
     // ============================================================================
     const requestId = createRequestId();
     const controller = new AbortController();
-    
+
     config.signal = controller.signal;
     // @ts-ignore - Add requestId to config for cleanup
     config.requestId = requestId;
-    
+
     activeRequests.set(requestId, controller);
 
     return config;
@@ -187,11 +187,11 @@ apiClient.interceptors.response.use(
     // PRODUCTION HARDENING: Retry Logic (Single Retry)
     // ============================================================================
     const retryCount = originalRequest?._retryCount || 0;
-    
+
     if (retryCount < MAX_RETRIES && shouldRetry(error)) {
       originalRequest._retryCount = retryCount + 1;
       console.log(`[API] Retrying request (attempt ${retryCount + 1}/${MAX_RETRIES}):`, originalRequest?.url);
-      
+
       await delay(RETRY_DELAY);
       return apiClient(originalRequest);
     }
@@ -202,12 +202,22 @@ apiClient.interceptors.response.use(
     if (!error.response) {
       // No response received - network/connection issue
       if (error.code === 'ECONNABORTED') {
-        const timeoutError: any = new Error('Request timed out. Please check your connection and try again.');
+        const timeoutError: any = new Error(
+          'Connection timed out. Please ensure:\n' +
+          '1. Your backend server is running\n' +
+          '2. You are on the same WiFi network\n' +
+          '3. Check the IP address in api.config.ts'
+        );
         timeoutError.code = 'TIMEOUT';
         return Promise.reject(timeoutError);
       }
       if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
-        const networkError: any = new Error('Network error. Please check your internet connection.');
+        const networkError: any = new Error(
+          'Cannot connect to server. Please ensure:\n' +
+          '1. Backend is running (cd backend && node src/server.js)\n' +
+          '2. Both devices on same WiFi\n' +
+          '3. Firewall allows port 5001'
+        );
         networkError.code = 'NETWORK_ERROR';
         return Promise.reject(networkError);
       }
@@ -217,7 +227,9 @@ apiClient.interceptors.response.use(
         return Promise.reject(dnsError);
       }
       // Generic no-response error
-      const connectionError: any = new Error('Unable to connect to server. Please try again.');
+      const connectionError: any = new Error(
+        'Unable to reach backend server. Ensure backend is running and accessible.'
+      );
       connectionError.code = 'NO_RESPONSE';
       return Promise.reject(connectionError);
     }
@@ -255,10 +267,10 @@ apiClient.interceptors.response.use(
 
         const { accessToken } = response.data;
         await SecureStore.setItemAsync(ACCESS_TOKEN, accessToken);
-        
+
         apiClient.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        
+
         processQueue(null, accessToken);
         isRefreshing = false;
 
@@ -266,10 +278,10 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         isRefreshing = false;
-        
+
         // Clear tokens
         await tokenManager.clearTokens();
-        
+
         // ============================================================================
         // PRODUCTION HARDENING: Trigger forceLogout in AuthContext
         // ============================================================================
@@ -277,7 +289,7 @@ apiClient.interceptors.response.use(
           console.log('🔐 [API] Session expired - triggering forceLogout');
           sessionExpiredCallback();
         }
-        
+
         // Throw a specific error that screens can handle
         const logoutError: any = new Error('Session expired. Please login again.');
         logoutError.code = 'SESSION_EXPIRED';
@@ -328,6 +340,14 @@ export interface User {
   activityLevel?: string;
   goal?: string;
   calorieTarget?: number;
+  push_token?: string;
+  subscriptionStatus?: 'free' | 'pro' | 'premium' | 'weekly' | 'monthly' | 'yearly';
+  subscriptionPlan?: 'weekly' | 'monthly' | 'yearly';
+  aiUsageCount?: number;
+  dietaryRestrictions?: string[];
+  preferredCuisines?: string[];
+  createdAt?: string;
+  lastLogin?: string;
 }
 
 export interface AuthResponse {
@@ -346,6 +366,7 @@ export interface UpdateProfileData {
   activityLevel?: string;
   goal?: string;
   calorieTarget?: number;
+  push_token?: string;
 }
 
 // Auth API
@@ -364,24 +385,12 @@ export const authAPI = {
     return response.data;
   },
 
-  async googleAuth(idToken: string): Promise<AuthResponse> {
-    const response = await apiClient.post('/auth/google', { idToken });
-    const { accessToken, refreshToken } = response.data;
-    await tokenManager.setTokens(accessToken, refreshToken);
-    return response.data;
-  },
-
-  async appleAuth(identityToken: string, user?: any): Promise<AuthResponse> {
-    const response = await apiClient.post('/auth/apple', { identityToken, user });
-    const { accessToken, refreshToken } = response.data;
-    await tokenManager.setTokens(accessToken, refreshToken);
-    return response.data;
-  },
-
-  async logout(): Promise<void> {
+  async logout(pushToken?: string): Promise<void> {
     const refreshToken = await tokenManager.getRefreshToken();
     try {
-      await apiClient.post('/auth/logout', { refreshToken });
+      if (refreshToken) {
+        await apiClient.post('/auth/logout', { refreshToken, pushToken });
+      }
     } finally {
       await tokenManager.clearTokens();
     }
@@ -402,6 +411,13 @@ export const authAPI = {
     const { accessToken } = response.data;
     await SecureStore.setItemAsync(ACCESS_TOKEN, accessToken);
     return accessToken;
+  },
+
+  async firebaseLogin(idToken: string, pushToken?: string): Promise<AuthResponse> {
+    const response = await apiClient.post('/auth/firebase-login', { idToken, pushToken });
+    const { accessToken, refreshToken, user } = response.data;
+    await tokenManager.setTokens(accessToken, refreshToken);
+    return response.data;
   },
 };
 
@@ -480,6 +496,24 @@ export interface ProgressOverview {
   };
 }
 
+export interface AnalyticsDataResponse {
+  period: string;
+  data: AnalyticsSnapshot[];
+}
+
+export interface AnalyticsSnapshot {
+  date: string;
+  weight: number;
+  trend: number;
+  calories: number;
+  calorie_target: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  workout_completed?: boolean;
+  workout_calories_burned?: number;
+}
+
 // Food Types
 export interface FoodLog {
   id: number;
@@ -510,10 +544,11 @@ export interface CreateFoodLog {
   calories: number;
   protein?: number;
   carbs?: number;
-  fats?: number;
+  fat?: number; // Corrected from fats
   fiber?: number;
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   loggedAt?: string;
+  mealDate?: string; // Added to support custom dates
 }
 
 export interface FoodTotals {
@@ -532,6 +567,58 @@ export interface FoodTotals {
     calories: number;
   };
   percentageConsumed: number;
+}
+
+// Meal Recommendation Types
+export interface MealData {
+  targets: {
+    calories: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+  } | null;
+  recommendation: {
+    id: number;
+    foodItems: Array<{
+      name: string;
+      portion: string;
+      calories: number;
+      protein_g: number;
+      carbs_g: number;
+      fat_g: number;
+    }>;
+    calories: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+    generationMethod: string;
+    aiReasoning?: string;
+    createdAt: string;
+  } | null;
+  logged: {
+    items: Array<{
+      foodName: string;
+      portionSize: number;
+      unit: string;
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      loggedAt: string;
+    }>;
+    totals: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    };
+  };
+  compliance: {
+    score: number;
+    wasFollowed: boolean;
+    wasSwapped: boolean;
+    swapCount: number;
+  } | null;
 }
 
 // Exercise Types
@@ -611,6 +698,20 @@ export const analyticsAPI = {
     return response.data;
   },
 
+  // NEW: Strict Analytics Data
+  async getChartData(period: '1w' | '1m' | '3m' | '6m' | '1y'): Promise<AnalyticsDataResponse> {
+    const response = await apiClient.get('/analytics/chart-data', {
+      params: { period },
+      timeout: 15000 // 15 seconds
+    });
+    return response.data;
+  },
+
+  async syncAnalytics(): Promise<any> {
+    const response = await apiClient.post('/analytics/sync');
+    return response.data;
+  },
+
   async getWeeklyTrends(startDate?: string, endDate?: string): Promise<WeeklyTrends> {
     const params: any = {};
     if (startDate) params.startDate = startDate;
@@ -630,6 +731,12 @@ export const analyticsAPI = {
   async getProgress(): Promise<ProgressOverview> {
     const response = await apiClient.get('/analytics/progress');
     return response.data;
+  },
+
+  // Today Screen specific methods
+  async getDailyNutrition(date: string): Promise<any> {
+    const response = await apiClient.get('/analytics/daily', { params: { date } });
+    return response.data.summary;
   },
 };
 
@@ -665,6 +772,73 @@ export const foodAPI = {
   async getTotals(date?: string): Promise<FoodTotals> {
     const params = date ? { date } : {};
     const response = await apiClient.get('/food/totals', { params });
+    return response.data;
+  },
+
+  // Today Screen specific methods
+  async getDailyMeals(date: string): Promise<any[]> {
+    const response = await apiClient.get('/meals/daily', { params: { date } });
+    return response.data.meals || [];
+  },
+};
+
+// Meal Recommendation API
+export const mealAPI = {
+  /**
+   * Generate daily meal plan with AI recommendations
+   * POST /api/meals/generate-daily-plan
+   */
+  async generateDailyPlan(date?: string): Promise<{
+    success: boolean;
+    date: string;
+    meals: any[];
+  }> {
+    const response = await apiClient.post('/meals/generate-daily-plan', { date });
+    return response.data;
+  },
+
+  /**
+   * Swap a specific meal with AI alternative
+   * POST /api/meals/swap-meal
+   */
+  async swapMeal(mealType: 'breakfast' | 'lunch' | 'dinner', date?: string): Promise<{
+    success: boolean;
+    date: string;
+    mealType: string;
+    meal: any;
+  }> {
+    const response = await apiClient.post('/meals/swap-meal', { mealType, date });
+    return response.data;
+  },
+
+  /**
+   * Get daily meals with recommendations AND logged food
+   * GET /api/meals/daily-with-recommendations?date=YYYY-MM-DD
+   */
+  async getDailyWithRecommendations(date?: string): Promise<{
+    success: boolean;
+    date: string;
+    meals: {
+      breakfast: MealData;
+      lunch: MealData;
+      dinner: MealData;
+    };
+    distribution: {
+      mealStyle: string;
+      goalStyle: string;
+    } | null;
+  }> {
+    const params = date ? { date } : {};
+    const response = await apiClient.get('/meals/daily-with-recommendations', { params });
+    return response.data;
+  },
+
+  /**
+   * Recalculate meal distribution based on updated profile/goals
+   * POST /api/meals/recalculate
+   */
+  async recalculateDistribution(): Promise<any> {
+    const response = await apiClient.post('/meals/recalculate');
     return response.data;
   },
 };
@@ -734,6 +908,64 @@ export const waterAPI = {
   },
 };
 
+// Workout API
+export const workoutAPI = {
+  async getTodayWorkout(): Promise<any> {
+    const response = await apiClient.get('/workout/daily');
+    return response.data;
+  },
+
+  async getTemplates(): Promise<any[]> {
+    const response = await apiClient.get('/workout/templates');
+    return response.data.templates || [];
+  },
+
+  async getTemplateById(templateId: string): Promise<any> {
+    const response = await apiClient.get(`/workout/templates/${templateId}`);
+    return response.data;
+  },
+
+  async logSession(sessionData: any): Promise<any> {
+    const response = await apiClient.post('/workout/log-session', sessionData);
+    return response.data;
+  },
+
+  async getHistory(limit: number = 10): Promise<any[]> {
+    const response = await apiClient.get('/workout/history', { params: { limit } });
+    return response.data.history || [];
+  },
+
+  async recommendProgram(userId: number): Promise<any> {
+    const response = await apiClient.post('/workout/recommend', { user_id: userId });
+    return response.data;
+  },
+
+  async getPersonalRecords(): Promise<any[]> {
+    const response = await apiClient.get('/workout/personal-records');
+    return response.data.records || [];
+  },
+
+  async createPersonalRecord(data: {
+    exercise_name: string;
+    value: number;
+    unit: string;
+    achieved_at?: string
+  }): Promise<any> {
+    const response = await apiClient.post('/workout/personal-records', data);
+    return response.data;
+  },
+
+  async getAnalytics(): Promise<any> {
+    const response = await apiClient.get('/workout/analytics');
+    return response.data;
+  },
+
+  async updatePreferences(preferences: any): Promise<any> {
+    const response = await apiClient.put('/workout/preferences', preferences);
+    return response.data;
+  },
+};
+
 // User Profile Types
 export interface UserProfile {
   id: number;
@@ -743,13 +975,17 @@ export interface UserProfile {
   height?: number;
   age?: number;
   gender?: string;
-  activity_level?: string;
+  activityLevel?: string;
   goal?: string;
-  calorie_target?: number;
-  dietary_restrictions?: string[];
-  preferred_cuisines?: string[];
-  created_at: string;
-  last_login: string;
+  calorieTarget?: number;
+  dietaryRestrictions?: string[];
+  preferredCuisines?: string[];
+  createdAt?: string;
+  lastLogin?: string;
+  subscriptionStatus?: 'free' | 'pro' | 'premium' | 'weekly' | 'monthly' | 'yearly';
+  aiUsageCount?: number;
+  push_token?: string;
+  profile_completed?: boolean;
 }
 
 export interface UserStats {
@@ -771,6 +1007,45 @@ export const userAPI = {
   async getProfile(): Promise<UserProfile> {
     const response = await apiClient.get('/user/profile');
     return response.data.user;
+  },
+
+  /**
+   * CRITICAL: One-time profile setup
+   * Calls POST /api/user/profile-setup
+   * Backend enforces 409 conflict if already completed
+   */
+  async setupProfile(data: {
+    age: number;
+    gender: string;
+    height: number;
+    weight: number;
+    activityLevel: string;
+    goal: string;
+    // Extended fields
+    goal_aggressiveness?: string;
+    workout_level?: string;
+    meal_style?: string;
+    dietary_restrictions?: string;
+    allergies?: string;
+    preferred_cuisines?: string;
+  }): Promise<{ message: string; user: UserProfile }> {
+    const response = await apiClient.post('/user/profile-setup', data);
+    return response.data;
+  },
+
+  // NEW: Update Profile (for Onboarding)
+  async updateProfile(data: {
+    age?: number;
+    gender?: string;
+    height?: number;
+    weight?: number;
+    activity_level?: string;
+    goal?: string;
+    profile_completed?: boolean;
+    preferences?: any;
+  }): Promise<{ message: string; user: UserProfile }> {
+    const response = await apiClient.patch('/user/profile', data);
+    return response.data;
   },
 
   async getStats(): Promise<UserStats> {
@@ -827,7 +1102,7 @@ export const handleAPIError = (error: any): string => {
   // Handle Axios errors
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<{ error: string; message: string }>;
-    
+
     // Server provided an error message
     if (axiosError.response?.data?.error) {
       return axiosError.response.data.error;
@@ -835,7 +1110,7 @@ export const handleAPIError = (error: any): string => {
     if (axiosError.response?.data?.message) {
       return axiosError.response.data.message;
     }
-    
+
     // HTTP status code errors
     if (axiosError.response?.status) {
       const status = axiosError.response.status;
@@ -846,7 +1121,7 @@ export const handleAPIError = (error: any): string => {
         return 'Server error. Please try again later.';
       }
     }
-    
+
     // Network errors
     if (axiosError.code === 'ECONNREFUSED') {
       return 'Cannot connect to server. Please make sure the backend is running.';
@@ -857,24 +1132,300 @@ export const handleAPIError = (error: any): string => {
     if (axiosError.code === 'ERR_NETWORK') {
       return 'Network error. Please check your internet connection.';
     }
-    
+
     return axiosError.message || 'An unexpected error occurred';
   }
-  
+
   // Generic error
   return error?.message || 'An unexpected error occurred';
 };
 
-export default apiClient;
+// ============================================================================
+// FITNESS API - Fitness Logic Engine endpoints
+// ============================================================================
 
+export interface FitnessTargets {
+  bmr: number;
+  tdee: number;
+  calorie_target: number;
+  protein_target_g: number;
+  carb_target_g: number;
+  fat_target_g: number;
+  goal_type: string;
+  activity_level: string;
+}
 
-// Combined API export for convenience
+export interface Goal {
+  id: number;
+  user_id: number;
+  goal_type: 'fat_loss' | 'maintenance' | 'muscle_gain' | 'recomposition';
+  start_date: string;
+  target_date?: string;
+  start_weight_kg?: number;
+  target_weight_kg?: number;
+  calorie_target: number;
+  protein_target_g: number;
+  carb_target_g: number;
+  fat_target_g: number;
+  is_active: boolean;
+}
+
+export interface WeightLog {
+  id: number;
+  weight_kg: number;
+  body_fat_percentage?: number;
+  source: 'manual' | 'smart_scale' | 'imported';
+  log_date: string;
+  logged_at: string;
+  notes?: string;
+}
+
+export interface WeightTrend {
+  trend: 'gaining' | 'losing' | 'stable' | 'insufficient_data';
+  first_weight?: number;
+  last_weight?: number;
+  change_kg?: number;
+  weekly_change_kg?: number;
+  data_points: number;
+}
+
+export interface DailyDecision {
+  status: 'on_track' | 'over' | 'under' | 'no_data';
+  calorie_gap: number;
+  protein_gap_g: number;
+  carb_gap_g: number;
+  fat_gap_g: number;
+  net_calories: number;
+  calories_eaten: number;
+  calories_burned: number;
+  logging_complete: boolean;
+  next_action: string;
+}
+
+export interface PlateauEvent {
+  detected: boolean;
+  days_stalled?: number;
+  weight_at_detection?: number;
+  average_weight_during?: number;
+  logging_compliance_percentage?: number;
+  reason?: string;
+  suggested_adjustment?: number;
+}
+
+export const fitnessAPI = {
+  // Get user's calculated targets
+  async getTargets(): Promise<{ source: string; targets: FitnessTargets }> {
+    const response = await apiClient.get('/fitness/targets');
+    return response.data;
+  },
+
+  // Force recalculation of targets
+  async recalculateTargets(): Promise<FitnessTargets> {
+    const response = await apiClient.post('/fitness/targets/recalculate');
+    return response.data.targets;
+  },
+
+  // Set a new goal
+  async setGoal(goalData: {
+    goal_type: 'fat_loss' | 'maintenance' | 'muscle_gain' | 'recomposition';
+    target_weight_kg?: number;
+    target_date?: string;
+    custom_calorie_adjustment?: number;
+  }): Promise<Goal> {
+    const response = await apiClient.post('/fitness/goals', goalData);
+    return response.data.goal;
+  },
+
+  // Get active goal
+  async getActiveGoal(): Promise<{ has_goal: boolean; goal?: Goal }> {
+    const response = await apiClient.get('/fitness/goals/active');
+    return response.data;
+  },
+
+  // Log weight
+  async logWeight(data: {
+    weight_kg: number;
+    body_fat_percentage?: number;
+    source?: 'manual' | 'smart_scale';
+    notes?: string;
+    log_date?: string;
+  }): Promise<WeightLog> {
+    const response = await apiClient.post('/fitness/weight', data);
+    return response.data.weight_log;
+  },
+
+  // Get weight history
+  async getWeightHistory(days: number = 30): Promise<{ logs: WeightLog[]; trend: WeightTrend }> {
+    const response = await apiClient.get('/fitness/weight', { params: { days } });
+    return response.data;
+  },
+
+  // Get today's daily decision
+  async getDailyDecision(date?: string): Promise<{
+    date: string;
+    decision: DailyDecision;
+    targets: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  }> {
+    const response = await apiClient.get('/fitness/daily-decision', { params: { date } });
+    return response.data;
+  },
+
+  // Check for plateau (premium)
+  async checkPlateau(): Promise<{ plateau_detected: boolean; plateau?: PlateauEvent }> {
+    const response = await apiClient.get('/fitness/plateau-check');
+    return response.data;
+  },
+
+  // Apply plateau adjustment (premium)
+  async applyPlateauAdjustment(plateauId: number): Promise<{ new_calorie_target: number }> {
+    const response = await apiClient.post(`/fitness/plateau/${plateauId}/apply`);
+    return response.data;
+  }
+};
+
+// ============================================================================
+// BILLING API
+// ============================================================================
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  duration_days: number;
+  price_formatted: string;
+}
+
+export interface SubscriptionStatus {
+  has_subscription: boolean;
+  tier: 'guest' | 'free' | 'paid';
+  subscription?: {
+    plan_id: string;
+    plan_name: string;
+    status: string;
+    started_at: string;
+    current_period_end: string;
+    expires_at: string;
+    will_renew: boolean;
+    cancelled_at?: string;
+  };
+  limits: {
+    ai_requests_per_day?: number;
+    ai_requests_total?: number;
+    history_days: number | 'unlimited';
+    adaptive_calories: boolean;
+    plateau_detection: boolean;
+    advanced_insights: boolean;
+    export_data: boolean;
+  };
+}
+
+export interface AIUsageStatus {
+  tier: string;
+  can_use_ai: boolean;
+  used: number;
+  remaining: number;
+  limit: number;
+  reason?: string;
+}
+
+export const billingAPI = {
+  // Get available plans
+  async getPlans(): Promise<{ plans: SubscriptionPlan[]; features: Record<string, any> }> {
+    const response = await apiClient.get('/billing/plans');
+    return response.data;
+  },
+
+  // Get subscription status
+  async getStatus(): Promise<SubscriptionStatus> {
+    const response = await apiClient.get('/billing/status');
+    return response.data;
+  },
+
+  // Create subscription (after payment)
+  async subscribe(data: {
+    plan_id: string;
+    provider: 'apple' | 'google' | 'stripe';
+    provider_subscription_id?: string;
+    receipt?: string;
+  }): Promise<{ subscription: any }> {
+    const response = await apiClient.post('/billing/subscribe', data);
+    return response.data;
+  },
+
+  // Cancel subscription
+  async cancel(immediate: boolean = false): Promise<any> {
+    const response = await apiClient.post('/billing/cancel', { immediate });
+    return response.data;
+  },
+
+  // Get AI usage
+  async getAIUsage(): Promise<AIUsageStatus> {
+    const response = await apiClient.get('/billing/ai-usage');
+    return response.data;
+  },
+
+  // Check if user has access to a specific feature
+  async checkFeature(feature: string): Promise<{ has_access: boolean; reason?: string }> {
+    const response = await apiClient.get(`/billing/feature/${feature}`);
+    return response.data;
+  },
+
+  // Restore purchases (for app store)
+  async restorePurchases(data: {
+    provider: 'apple' | 'google';
+    receipt?: string;
+  }): Promise<{ restored: boolean; subscription?: any }> {
+    const response = await apiClient.post('/billing/restore', data);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// WEIGHT API (DEDICATED)
+// ============================================================================
+export const weightAPI = {
+  // Get weight history, stats, trends
+  getWeightData: async (): Promise<WeightData> => {
+    const response = await apiClient.get('/weight');
+    return response.data;
+  },
+
+  // Log weight entry
+  logWeight: async (weight: number, notes?: string, date?: string): Promise<any> => {
+    const response = await apiClient.post('/weight/log', { weight, notes, date });
+    return response.data;
+  },
+};
+
+export interface WeightData {
+  currentWeight: number;
+  startWeight: number;
+  logs: WeightLog[];
+  trend: {
+    direction: 'gaining' | 'losing' | 'stable' | 'insufficient_data';
+    rate: number;
+    percentage?: number;
+  } | null;
+  plateau: {
+    isPlateau: boolean;
+    reason?: 'no_change' | 'rebound';
+  };
+  goal: string;
+}
+
 export const api = {
   auth: authAPI,
   food: foodAPI,
+  meal: mealAPI,
   exercise: exerciseAPI,
   water: waterAPI,
   health: healthAPI,
   analytics: analyticsAPI,
   user: userAPI,
+  fitness: fitnessAPI,
+  billing: billingAPI,
+  weight: weightAPI,
 };
+
+export default apiClient;

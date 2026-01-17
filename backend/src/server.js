@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
 import { pool, query } from './config/database.js';
 import { sanitizeInput } from './middleware/validation.middleware.js';
 
@@ -11,12 +12,39 @@ import { sanitizeInput } from './middleware/validation.middleware.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
+
+// Request ID Middleware (MUST be first)
+app.use((req, res, next) => {
+  req.requestId = uuidv4();
+  res.setHeader('X-Request-ID', req.requestId);
+  next();
+});
 
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:19000', 'exp://192.168.31.240:8081'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // Allow all localhost, Expo, and local network IPs
+    const allowedOrigins = [
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
+      /^exp:\/\//,
+      /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
+      /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+$/
+    ];
+    
+    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
 
@@ -33,9 +61,19 @@ app.use('/api/', limiter);
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
+  max: 100, // Limit each IP to 5 auth attempts per windowMs
   message: 'Too many authentication attempts, please try again later.',
-  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limit for AI endpoints (IP-based abuse protection)
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // Limit each IP to 20 AI calls per hour (User-based limits applied in controller)
+  message: 'Too many AI requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Body parsing middleware
@@ -46,7 +84,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(sanitizeInput);
 
 // Logging middleware
-app.use(morgan('combined'));
+morgan.token('requestId', (req) => req.requestId);
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" [RequestID: :requestId]'));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -76,6 +115,12 @@ import waterRoutes from './routes/water.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import userRoutes from './routes/user.routes.js';
+import fitnessRoutes from './routes/fitness.routes.js';
+import billingRoutes from './routes/billing.routes.js';
+import weightRoutes from './routes/weight.routes.js';
+import mealRoutes from './routes/meals.routes.js';
+import workoutRoutes from './routes/workout.routes.js'; // NEW: Workout recommendations
+import mealRecommendationRoutes from './routes/mealRecommendation.routes.js'; // NEW: Meal recommendations
 
 // Apply routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -83,27 +128,36 @@ app.use('/api/food', foodRoutes);
 app.use('/api/exercise', exerciseRoutes);
 app.use('/api/water', waterRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/fitness', fitnessRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/weight', weightRoutes);
+app.use('/api/meals', mealRoutes);
+app.use('/api/workout', workoutRoutes); // NEW: Workout system
+app.use('/api/meal-recommendations', mealRecommendationRoutes); // NEW: AI meal recommendations
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
     error: 'Route not found',
-    path: req.path
+    path: req.path,
+    requestId: req.requestId
   });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
+  console.error(`[Error] RequestID: ${req.requestId} | Error:`, err);
   
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal server error';
   
+  // NEVER log stack trace in production response (security)
   res.status(statusCode).json({
     error: message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    requestId: req.requestId,
+    // stack: process.env.NODE_ENV === 'development' ? err.stack : undefined // Strict production: hidden
   });
 });
 
@@ -125,7 +179,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 FitCoach Backend running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Network access: http://192.168.31.240:${PORT}/health`);
+  // console.log(`🌐 Network access: http://<Your-IP>:${PORT}/health`);
 });
 
 export default app;

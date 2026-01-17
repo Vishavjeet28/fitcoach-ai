@@ -9,8 +9,7 @@
  * logger.error('Error occurred', error, { userId: '123' });
  */
 
-// TEMPORARILY DISABLED: Firebase not installed yet
-// import { logError as firebaseLogError, logMessage as firebaseLogMessage } from '../config/firebase';
+import { logError as firebaseLogError, logMessage as firebaseLogMessage } from '../config/firebase';
 
 const isDev = __DEV__;
 
@@ -34,11 +33,10 @@ const logger = {
       console.log(formattedMessage);
     }
 
-    // TEMPORARILY DISABLED: Firebase not installed yet
     // Send to Firebase in production
-    // if (!isDev) {
-    //   firebaseLogMessage(message, 'info');
-    // }
+    if (!isDev) {
+      firebaseLogMessage(message, 'info');
+    }
   },
 
   /**
@@ -57,16 +55,15 @@ const logger = {
       console.error(formattedMessage, context || {});
     }
 
-    // TEMPORARILY DISABLED: Firebase not installed yet
     // Send to Firebase in production
-    // if (!isDev) {
-    //   if (error instanceof Error) {
-    //     firebaseLogError(error, { ...context, message });
-    //   } else {
-    //     const syntheticError = new Error(message);
-    //     firebaseLogError(syntheticError, context);
-    //   }
-    // }
+    if (!isDev) {
+      if (error instanceof Error) {
+        firebaseLogError(error, { ...context, message });
+      } else {
+        const syntheticError = new Error(message);
+        firebaseLogError(syntheticError, context);
+      }
+    }
   },
 
   /**
@@ -84,10 +81,10 @@ const logger = {
       console.warn(formattedMessage);
     }
 
-    // TEMPORARILY DISABLED: Firebase not installed yet
-    // if (!isDev) {
-    //   firebaseLogMessage(message, 'warning');
-    // }
+    // Send to Firebase in production
+    if (!isDev) {
+      firebaseLogMessage(message, 'warning');
+    }
   },
 
   /**

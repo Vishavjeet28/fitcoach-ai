@@ -106,10 +106,23 @@ const initDB = () => {
       height REAL,
       calorie_target INTEGER DEFAULT 2700,
       goal TEXT DEFAULT 'Maintain weight',
+      push_token TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration for push_token
+  try {
+    const userColumns = dbExport.prepare('PRAGMA table_info(users)').all();
+    const hasPushToken = userColumns.some(col => col.name === 'push_token');
+    if (!hasPushToken) {
+        dbExport.exec('ALTER TABLE users ADD COLUMN push_token TEXT');
+        console.log('✅ Added push_token column to users table');
+    }
+  } catch (err) {
+    console.log('Migration error (push_token):', err);
+  }
 
   // Chat messages table
   dbExport.exec(`

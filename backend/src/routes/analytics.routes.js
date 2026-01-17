@@ -4,14 +4,20 @@ import {
   getDailySummary,
   getWeeklyTrends,
   getMonthlyStats,
-  getProgressOverview
+  getProgressOverview,
+  getAnalyticsData,
+  syncAnalytics
 } from '../controllers/analytics.controller.js';
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
-// Analytics endpoints
+// New Analytics System (Strict)
+router.get('/chart-data', getAnalyticsData);
+router.post('/sync', syncAnalytics);
+
+// Legacy/Specific endpoints
 router.get('/daily', getDailySummary);
 router.get('/weekly', getWeeklyTrends);
 router.get('/monthly', getMonthlyStats);

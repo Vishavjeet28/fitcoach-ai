@@ -1,14 +1,96 @@
 import { query } from '../config/database.js';
 import aiService from '../services/ai.service.js';
+import billingService from '../services/billingService.js';
+import FLE from '../services/fitnessLogicEngine.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// ============================================================================
+// HELPER: Check AI Usage with Billing Service
+// ============================================================================
+const checkAndIncrementAIUsage = async (userId, guestDeviceId, requestType) => {
+  const usage = await billingService.checkAIUsage(userId, guestDeviceId);
+  
+  if (!usage.allowed) {
+    return {
+      allowed: false,
+      error: {
+        error: usage.reason,
+        code: 'LIMIT_REACHED',
+        currentUsage: usage.used,
+        remaining: usage.remaining,
+        limit: usage.limit
+      }
+    };
+  }
+
+  // Increment after successful check
+  await billingService.incrementAIUsage(userId, guestDeviceId, requestType);
+  
+  return { allowed: true, remaining: usage.remaining - 1 };
+};
+
+// ============================================================================
+// HELPER: Get AI Context from Daily Decision
+// ============================================================================
+const getAIContext = async (userId) => {
+  try {
+    // Get today's decision
+    const decisionResult = await query(
+      `SELECT ai_context FROM daily_decisions 
+       WHERE user_id = $1 AND decision_date = CURRENT_DATE`,
+      [userId]
+    );
+
+    if (decisionResult.rows.length > 0 && decisionResult.rows[0].ai_context) {
+      return decisionResult.rows[0].ai_context;
+    }
+
+    // Fallback: compute context
+    const summaryResult = await query(
+      `SELECT total_calories, total_protein, total_carbs, total_fat,
+              total_exercise_calories
+       FROM daily_summaries
+       WHERE user_id = $1 AND summary_date = CURRENT_DATE`,
+      [userId]
+    );
+
+    const userResult = await query(
+      `SELECT weight, goal, calorie_target FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    const consumed = summaryResult.rows[0] || {};
+    const user = userResult.rows[0] || {};
+
+    return {
+      goal: user.goal || 'maintenance',
+      calorie_target: user.calorie_target || 2000,
+      net_calories: (consumed.total_calories || 0) - (consumed.total_exercise_calories || 0),
+      protein_consumed: consumed.total_protein || 0,
+      carbs_consumed: consumed.total_carbs || 0,
+      fat_consumed: consumed.total_fat || 0,
+      weight: user.weight
+    };
+  } catch (e) {
+    console.warn('Failed to get AI context:', e.message);
+    return null;
+  }
+};
 
 // Get meal suggestions
 export const getMealSuggestions = async (req, res) => {
   try {
     const userId = req.user.id;
+    const guestDeviceId = req.headers['x-device-id'];
     const { dietaryRestrictions, preferredCuisines } = req.body;
+
+    // Check usage limits using billing service
+    const usageCheck = await checkAndIncrementAIUsage(userId, guestDeviceId, 'meal_suggestion');
+    if (!usageCheck.allowed) {
+      return res.status(403).json(usageCheck.error);
+    }
 
     // Get user profile
     const userResult = await query(
@@ -36,7 +118,8 @@ export const getMealSuggestions = async (req, res) => {
 
     res.json({
       message: 'Meal suggestions generated successfully',
-      suggestions
+      suggestions,
+      remaining_requests: usageCheck.remaining
     });
   } catch (error) {
     console.error('Get meal suggestions error:', error);
@@ -47,13 +130,42 @@ export const getMealSuggestions = async (req, res) => {
 // Recognize food from description
 export const recognizeFood = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { description } = req.body;
 
     if (!description || description.length < 3) {
       return res.status(400).json({ error: 'Food description is required' });
     }
 
+    // Check usage limits
+    const userToCheck = await query(
+      'SELECT subscription_status, ai_usage_count FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userToCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { subscription_status, ai_usage_count } = userToCheck.rows[0];
+    const isPro = ['pro', 'premium', 'weekly', 'monthly', 'yearly'].includes(subscription_status);
+    
+    if (!isPro && ai_usage_count >= 5) {
+      return res.status(403).json({ 
+        error: 'Free limit reached', 
+        code: 'LIMIT_REACHED',
+        currentUsage: ai_usage_count, 
+        limit: 5 
+      });
+    }
+
     const foodInfo = await aiService.recognizeFood(description);
+
+    // Increment usage
+    await query(
+      'UPDATE users SET ai_usage_count = ai_usage_count + 1 WHERE id = $1',
+      [userId]
+    );
 
     res.json({
       message: 'Food recognized successfully',
@@ -69,6 +181,28 @@ export const recognizeFood = async (req, res) => {
 export const getInsights = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Check usage limits
+    const userToCheck = await query(
+      'SELECT subscription_status, ai_usage_count FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userToCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { subscription_status, ai_usage_count } = userToCheck.rows[0];
+    const isPro = ['pro', 'premium', 'weekly', 'monthly', 'yearly'].includes(subscription_status);
+    
+    if (!isPro && ai_usage_count >= 5) {
+      return res.status(403).json({ 
+        error: 'Free limit reached', 
+        code: 'LIMIT_REACHED',
+        currentUsage: ai_usage_count, 
+        limit: 5 
+      });
+    }
 
     // Get user's recent data
     const userResult = await query(
@@ -117,6 +251,12 @@ export const getInsights = async (req, res) => {
       [userId, JSON.stringify(insights), JSON.stringify(userData)]
     );
 
+    // Increment usage
+    await query(
+      'UPDATE users SET ai_usage_count = ai_usage_count + 1 WHERE id = $1',
+      [userId]
+    );
+
     res.json({
       message: 'Insights generated successfully',
       insights
@@ -137,6 +277,28 @@ export const askQuestion = async (req, res) => {
       return res.status(400).json({ error: 'Question is required' });
     }
 
+    // Check usage limits
+    const userToCheck = await query(
+      'SELECT subscription_status, ai_usage_count FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userToCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { subscription_status, ai_usage_count } = userToCheck.rows[0];
+    const isPro = ['pro', 'premium', 'weekly', 'monthly', 'yearly'].includes(subscription_status);
+    
+    if (!isPro && ai_usage_count >= 5) {
+      return res.status(403).json({ 
+        error: 'Free limit reached', 
+        code: 'LIMIT_REACHED',
+        currentUsage: ai_usage_count, 
+        limit: 5 
+      });
+    }
+
     // Get user context
     const userResult = await query(
       'SELECT calorie_target, goal, weight, height, age, gender FROM users WHERE id = $1',
@@ -149,7 +311,13 @@ export const askQuestion = async (req, res) => {
       calorieTarget: user.calorie_target
     };
 
-  const response = await aiService.askFitnessQuestion(question, userContext);
+    const response = await aiService.askFitnessQuestion(question, userContext);
+
+    // Increment usage
+    await query(
+      'UPDATE users SET ai_usage_count = ai_usage_count + 1 WHERE id = $1',
+      [userId]
+    );
 
     res.json({
       question,

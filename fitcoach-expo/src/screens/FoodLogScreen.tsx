@@ -18,19 +18,21 @@ import foodData from '../data/completeFoodDatabase.json';
 import { foodAPI, handleAPIError, CreateFoodLog } from '../services/api';
 import apiClient from '../services/api';
 import { Alert, ActivityIndicator } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
 const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
+  primary: '#26d9bb', // Teal
+  primaryDark: '#1fbda1',
+  backgroundDark: '#FAFAFA', // Mapped to Light BG
+  surfaceDark: '#FFFFFF',    // Mapped to White Surface
+  textPrimary: '#1e293b',    // Slate 800
+  textSecondary: '#64748b',  // Slate 500
+  textTertiary: '#94a3b8',   // Slate 400
+  warning: '#F59E0B',
+  info: '#3B82F6',
   success: '#10B981',
   error: '#EF4444',
+  border: '#e2e8f0',
 };
 
 interface FoodItem {
@@ -43,12 +45,13 @@ interface FoodItem {
 
 const FoodLogScreen = () => {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   const [mealType, setMealType] = useState('Breakfast');
   const [foodName, setFoodName] = useState('');
   const [servingSize, setServingSize] = useState('100');
@@ -67,7 +70,7 @@ const FoodLogScreen = () => {
   useEffect(() => {
     // Load popular foods initially
     const popular = ['Roti', 'Chapati', 'Plain Rice Cooked', 'Toor Dal', 'Idli', 'Dosa', 'Paneer Tikka', 'Butter Chicken'];
-    const popularFoods = popular.map(name => 
+    const popularFoods = popular.map(name =>
       foodData.foods.find(food => food.name === name)
     ).filter(Boolean) as FoodItem[];
     setSearchResults(popularFoods);
@@ -83,7 +86,7 @@ const FoodLogScreen = () => {
       setShowResults(true);
     } else {
       const popular = ['Roti', 'Chapati', 'Plain Rice Cooked', 'Toor Dal', 'Idli', 'Dosa', 'Paneer Tikka', 'Butter Chicken'];
-      const popularFoods = popular.map(name => 
+      const popularFoods = popular.map(name =>
         foodData.foods.find(food => food.name === name)
       ).filter(Boolean) as FoodItem[];
       setSearchResults(popularFoods);
@@ -96,11 +99,11 @@ const FoodLogScreen = () => {
     setFoodName(food.name);
     setSearchQuery(food.name);
     setShowResults(false);
-    
+
     // Calculate for serving size
     const serving = parseFloat(servingSize) || 100;
     const multiplier = serving / 100;
-    
+
     setCalories(Math.round(food.calories * multiplier).toString());
     setProtein((food.protein * multiplier).toFixed(1));
     setCarbs((food.carbs * multiplier).toFixed(1));
@@ -112,7 +115,7 @@ const FoodLogScreen = () => {
     if (selectedFood && text) {
       const serving = parseFloat(text) || 100;
       const multiplier = serving / 100;
-      
+
       setCalories(Math.round(selectedFood.calories * multiplier).toString());
       setProtein((selectedFood.protein * multiplier).toFixed(1));
       setCarbs((selectedFood.carbs * multiplier).toFixed(1));
@@ -123,9 +126,19 @@ const FoodLogScreen = () => {
   const handleSaveFood = async () => {
     if (!foodName || !calories) return;
 
+    // Check for guest mode
+    if (user?.email === 'guest@fitcoach.ai' || !user) {
+      Alert.alert(
+        'Demo Mode',
+        'Food logging is disabled in demo mode. Please sign up to track your nutrition!',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     try {
       setLoading(true);
-      
+
       // Get local date nicely formatted as YYYY-MM-DD
       const now = new Date();
       const year = now.getFullYear();
@@ -144,21 +157,21 @@ const FoodLogScreen = () => {
         calories: Math.round(parseFloat(calories)),
         protein: parseFloat(protein) || 0,
         carbs: parseFloat(carbs) || 0,
-        fats: parseFloat(fat) || 0,
+        fat: parseFloat(fat) || 0,
       };
 
       console.log('Sending food log payload:', JSON.stringify(payload, null, 2));
-      
+
       await apiClient.post('/food/logs', payload);
-      
+
       // Alert.alert('Success', 'Food logged successfully'); 
       navigation.goBack();
-      
+
     } catch (error: any) {
       console.error('Error saving food:', error);
       console.error('Error response:', error.response?.data);
       console.error('Error status:', error.response?.status);
-      
+
       const errorMessage = handleAPIError(error);
       Alert.alert('Save Failed', `${errorMessage}\n\n(Status: ${error.response?.status || 'Unknown'})`);
     } finally {
@@ -193,28 +206,28 @@ const FoodLogScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <StatusBar barStyle="light-content" backgroundColor={colors.backgroundDark} />
-      
+      <StatusBar barStyle="dark-content" backgroundColor={colors.backgroundDark} />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Log Food</Text>
           <Text style={styles.headerSubtitle}>Track your nutrition</Text>
         </View>
-        
+
         <TouchableOpacity style={styles.headerButton}>
           <MaterialCommunityIcons name="history" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -238,7 +251,7 @@ const FoodLogScreen = () => {
                 setSearchQuery('');
                 setShowResults(false);
                 const popular = ['Roti', 'Chapati', 'Plain Rice Cooked', 'Toor Dal', 'Idli', 'Dosa'];
-                const popularFoods = popular.map(name => 
+                const popularFoods = popular.map(name =>
                   foodData.foods.find(food => food.name === name)
                 ).filter(Boolean) as FoodItem[];
                 setSearchResults(popularFoods);
@@ -266,7 +279,7 @@ const FoodLogScreen = () => {
         </View>
 
         {/* AI Assistant Banner */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.aiCard}
           onPress={() => navigation.navigate('Coach' as never)}
           activeOpacity={0.8}
@@ -298,10 +311,10 @@ const FoodLogScreen = () => {
                 onPress={() => setMealType(meal.name)}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons 
-                  name={meal.icon} 
-                  size={24} 
-                  color={mealType === meal.name ? meal.color : colors.textTertiary} 
+                <MaterialCommunityIcons
+                  name={meal.icon as any}
+                  size={24}
+                  color={mealType === meal.name ? meal.color : colors.textTertiary}
                 />
                 <Text style={[
                   styles.mealTypeName,
@@ -317,7 +330,7 @@ const FoodLogScreen = () => {
         {/* Food Details Form */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>FOOD DETAILS</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Food Name *</Text>
             <View style={styles.inputContainer}>
@@ -467,10 +480,10 @@ const FoodLogScreen = () => {
               <ActivityIndicator size="small" color="white" />
             ) : (
               <>
-                <MaterialCommunityIcons 
-                  name="check-circle" 
-                  size={20} 
-                  color={isFormValid ? 'white' : colors.textTertiary} 
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={20}
+                  color={isFormValid ? 'white' : colors.textTertiary}
                 />
                 <Text style={[
                   styles.saveButtonText,
@@ -507,7 +520,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
@@ -517,7 +530,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   headerCenter: {
     flex: 1,
@@ -541,7 +554,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
 
   section: {
@@ -565,7 +578,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
@@ -579,7 +592,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   searchResultsTitle: {
     fontSize: 11,
@@ -598,7 +611,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.border,
   },
   searchResultLeft: {
     flexDirection: 'row',
@@ -658,7 +671,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   mealTypeCardActive: {
     borderWidth: 2,
@@ -687,7 +700,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   input: {
     flex: 1,
@@ -708,7 +721,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   macroInput: {
     fontSize: 15,
@@ -764,7 +777,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border,
   },
   cancelButtonText: {
     fontSize: 15,

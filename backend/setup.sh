@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # FitCoach Backend Setup Script

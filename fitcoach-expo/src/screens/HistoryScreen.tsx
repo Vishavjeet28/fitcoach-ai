@@ -12,21 +12,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { analyticsAPI, foodAPI, exerciseAPI, handleAPIError } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
-import { useAuthReady } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
+  primary: '#26d9bb', // Teal
+  primaryDark: '#1fbda1',
+  backgroundDark: '#FAFAFA', // Light BG
+  surfaceDark: '#FFFFFF',    // White Surface
+  textPrimary: '#1e293b',    // Slate 800
+  textSecondary: '#64748b',  // Slate 500
+  textTertiary: '#94a3b8',   // Slate 400
+  warning: '#F59E0B',
+  info: '#3B82F6',
   success: '#10B981',
   purple: '#A855F7',
-  orange: '#FB7185',
+  orange: '#F97316',
+  border: '#e2e8f0',
 };
 
 interface HistoryEntry {
@@ -49,27 +50,36 @@ interface HistoryEntry {
 
 export default function HistoryScreen() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const { isAuthReady } = useAuthReady();
+  const { token, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'all' | 'food' | 'exercise' | 'weight'>('all');
-  
+
   // Use focus effect to reload data whenever screen appears
   useFocusEffect(
     React.useCallback(() => {
-      if (isAuthReady) { console.log('📜 [HISTORY] Auth ready, loading history'); loadHistory(); }
-    }, [isAuthReady])
+      if (!authLoading) { console.log('📜 [HISTORY] Auth ready, loading history'); loadHistory(); }
+    }, [authLoading])
   );
 
   const loadHistory = async () => {
     console.log('📜 [HISTORY] Fetching history data...');
+
+    // Check for Guest Mode
+    if (!token) {
+      console.log('👤 [HISTORY] Guest mode detected - skipping API calls');
+      setLoading(false);
+      setHistory([]); // Empty history
+      return;
+    }
+
     try {
       setLoading(true);
-      
+
       // Calculate date range for last 30 days
       const end = new Date();
       const start = new Date();
       start.setDate(start.getDate() - 30);
-      
+
       const endDate = end.toISOString().split('T')[0];
       const startDate = start.toISOString().split('T')[0];
 
@@ -119,7 +129,7 @@ export default function HistoryScreen() {
       transformedHistory.sort((a, b) => {
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
-      
+
       setHistory(transformedHistory);
     } catch (error: any) {
       if (error?.code !== 'SESSION_EXPIRED') {
@@ -129,8 +139,8 @@ export default function HistoryScreen() {
     } finally {
       setLoading(false);
     }
-  };  const filteredHistory = selectedTab === 'all' 
-    ? history 
+  }; const filteredHistory = selectedTab === 'all'
+    ? history
     : history.filter(entry => entry.type === selectedTab);
 
   const getIconForType = (type: string) => {
@@ -162,8 +172,8 @@ export default function HistoryScreen() {
     } else if (date.toDateString() === yesterday.toDateString()) {
       return 'Yesterday';
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
         day: 'numeric',
         year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
       });
@@ -207,19 +217,19 @@ export default function HistoryScreen() {
                   colors={[colors.primary, colors.primaryDark]}
                   style={styles.activeTabGradient}
                 >
-                  <MaterialCommunityIcons 
-                    name={tab.icon as any} 
-                    size={20} 
-                    color={colors.backgroundDark} 
+                  <MaterialCommunityIcons
+                    name={tab.icon as any}
+                    size={20}
+                    color={colors.backgroundDark}
                   />
                   <Text style={styles.activeTabText}>{tab.label}</Text>
                 </LinearGradient>
               ) : (
                 <View style={styles.inactiveTab}>
-                  <MaterialCommunityIcons 
-                    name={tab.icon as any} 
-                    size={20} 
-                    color={colors.textTertiary} 
+                  <MaterialCommunityIcons
+                    name={tab.icon as any}
+                    size={20}
+                    color={colors.textTertiary}
                   />
                   <Text style={styles.inactiveTabText}>{tab.label}</Text>
                 </View>
@@ -236,7 +246,7 @@ export default function HistoryScreen() {
             <MaterialCommunityIcons name="history" size={64} color={colors.textTertiary} />
             <Text style={styles.emptyTitle}>No history yet</Text>
             <Text style={styles.emptySubtitle}>
-              {selectedTab === 'all' 
+              {selectedTab === 'all'
                 ? 'Start tracking your activities!'
                 : `No ${selectedTab} entries found`}
             </Text>
@@ -247,10 +257,10 @@ export default function HistoryScreen() {
               <View style={styles.historyItemHeader}>
                 <View style={styles.historyItemLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: `${getColorForType(entry.type)}20` }]}>
-                    <MaterialCommunityIcons 
-                      name={getIconForType(entry.type) as any} 
-                      size={24} 
-                      color={getColorForType(entry.type)} 
+                    <MaterialCommunityIcons
+                      name={getIconForType(entry.type) as any}
+                      size={24}
+                      color={getColorForType(entry.type)}
                     />
                   </View>
                   <View style={styles.historyItemInfo}>
@@ -272,7 +282,7 @@ export default function HistoryScreen() {
                   )}
                 </View>
               </View>
-              
+
               {entry.macros && (
                 <View style={styles.macrosContainer}>
                   <View style={styles.macroItem}>
@@ -351,7 +361,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   activeTabText: {
-    color: colors.backgroundDark,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
@@ -364,7 +374,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.surfaceDark,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   inactiveTabText: {
     color: colors.textTertiary,
@@ -398,7 +408,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -461,7 +471,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopColor: colors.border,
   },
   macroItem: {
     alignItems: 'center',

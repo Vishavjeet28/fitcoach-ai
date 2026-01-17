@@ -6,10 +6,16 @@ export const logFoodValidator = [
     .isInt({ min: 1 })
     .withMessage('Food ID must be a positive integer'),
   
-  body('foodName')
+  body('customFoodName')
+    .optional()
     .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('Food name must be between 1 and 200 characters'),
+
+  body('foodName') // Alias
+    .optional() 
+    .trim()
+    .isLength({ min: 1, max: 200 }),
   
   body('servingSize')
     .isFloat({ min: 0.1, max: 10000 })
@@ -34,10 +40,14 @@ export const logFoodValidator = [
     .isFloat({ min: 0, max: 10000 })
     .withMessage('Carbs must be between 0 and 10000g'),
   
-  body('fats')
+  body('fat')
     .optional()
     .isFloat({ min: 0, max: 1000 })
-    .withMessage('Fats must be between 0 and 1000g'),
+    .withMessage('Fat must be between 0 and 1000g'),
+
+  body('fats') // Alias
+    .optional()
+    .isFloat({ min: 0, max: 1000 }),
   
   body('fiber')
     .optional()

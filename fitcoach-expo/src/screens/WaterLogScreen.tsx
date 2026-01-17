@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,39 +7,67 @@ import {
   TouchableOpacity,
   StatusBar,
   Animated,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { waterAPI, handleAPIError } from '../services/api';
 
 const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
+  primary: '#26d9bb', // Teal
+  primaryDark: '#1fbda1',
+  backgroundDark: '#FAFAFA', // Light BG
+  surfaceDark: '#FFFFFF',    // White Surface
+  textPrimary: '#1e293b',    // Slate 800
+  textSecondary: '#64748b',  // Slate 500
+  textTertiary: '#94a3b8',   // Slate 400
+  warning: '#F59E0B',
+  info: '#3B82F6',
   success: '#10B981',
   error: '#EF4444',
+  border: '#e2e8f0',
 };
 
 const WaterLogScreen = () => {
   const navigation = useNavigation();
-  const [waterConsumed, setWaterConsumed] = useState(1.5); // in liters
-  const dailyGoal = 3.0; // liters
+  const [waterConsumed, setWaterConsumed] = useState(0); // in liters (will be fetched)
+  const [dailyGoal, setDailyGoal] = useState(3.0); // liters
   const [scaleAnim] = useState(new Animated.Value(1));
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const quickAmounts = [
-    { amount: 0.25, label: '250ml', icon: 'cup', color: colors.info },
-    { amount: 0.5, label: '500ml', icon: 'glass-mug-variant', color: colors.success },
-    { amount: 0.75, label: '750ml', icon: 'bottle-tonic', color: colors.warning },
-    { amount: 1.0, label: '1L', icon: 'bottle-soda', color: colors.primary },
+    { amount: 250, label: '250ml', icon: 'cup', color: colors.info },
+    { amount: 500, label: '500ml', icon: 'glass-mug-variant', color: colors.success },
+    { amount: 750, label: '750ml', icon: 'bottle-tonic', color: colors.warning },
+    { amount: 1000, label: '1L', icon: 'bottle-soda', color: colors.primary },
   ];
 
-  const handleAddWater = (amount) => {
+  // Fetch existing water data on mount
+  const fetchWaterData = async () => {
+    try {
+      setLoading(true);
+      const totals = await waterAPI.getTotals();
+      if (totals) {
+        setWaterConsumed((totals.totals?.amountMl || 0) / 1000); // Convert ml to L
+        setDailyGoal((totals.goal?.amountMl || 3000) / 1000);
+      }
+    } catch (error) {
+      console.error('Error fetching water data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWaterData();
+    }, [])
+  );
+
+  const handleAddWater = async (amountMl: number) => {
     // Animate button
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -54,35 +82,61 @@ const WaterLogScreen = () => {
       }),
     ]).start();
 
-    setWaterConsumed(prev => Math.min(prev + amount, dailyGoal + 2));
+    // Save to backend
+    try {
+      setSaving(true);
+      await waterAPI.createLog(amountMl);
+      // Update local state
+      setWaterConsumed(prev => prev + (amountMl / 1000));
+    } catch (error) {
+      Alert.alert('Error', handleAPIError(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleRemoveWater = (amount) => {
-    setWaterConsumed(prev => Math.max(prev - amount, 0));
+  // Custom amount state
+  const [customAmount, setCustomAmount] = useState(100);
+
+  const handleRemoveWater = () => {
+    setCustomAmount(prev => Math.max(prev - 50, 50));
+  };
+
+  const handleAddCustom = () => {
+    setCustomAmount(prev => Math.min(prev + 50, 1000));
   };
 
   const percentage = Math.min((waterConsumed / dailyGoal) * 100, 100);
   const isGoalReached = waterConsumed >= dailyGoal;
 
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.info} />
+        <Text style={{ marginTop: 12, color: colors.textSecondary }}>Loading water data...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.backgroundDark} />
-      
+      <StatusBar barStyle="dark-content" backgroundColor={colors.backgroundDark} />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Water Intake</Text>
           <Text style={styles.headerSubtitle}>Stay hydrated</Text>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.headerButton}
           onPress={() => setWaterConsumed(0)}
         >
@@ -90,7 +144,7 @@ const WaterLogScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -107,12 +161,12 @@ const WaterLogScreen = () => {
                   end={{ x: 0, y: 1 }}
                 />
               </View>
-              
+
               <View style={styles.progressContent}>
-                <MaterialCommunityIcons 
-                  name="water" 
-                  size={48} 
-                  color={isGoalReached ? colors.primary : colors.info} 
+                <MaterialCommunityIcons
+                  name="water"
+                  size={48}
+                  color={isGoalReached ? colors.primary : colors.info}
                 />
                 <Text style={styles.progressValue}>{waterConsumed.toFixed(1)}L</Text>
                 <Text style={styles.progressLabel}>of {dailyGoal}L goal</Text>
@@ -146,7 +200,7 @@ const WaterLogScreen = () => {
                   colors={[item.color + '20', item.color + '10']}
                   style={styles.quickGradient}
                 >
-                  <MaterialCommunityIcons name={item.icon} size={32} color={item.color} />
+                  <MaterialCommunityIcons name={item.icon as any} size={32} color={item.color} />
                   <Text style={styles.quickLabel}>{item.label}</Text>
                   <TouchableOpacity
                     style={[styles.quickAction, { backgroundColor: item.color }]}
@@ -197,7 +251,7 @@ const WaterLogScreen = () => {
             ].map((tip, index) => (
               <View key={index} style={styles.tipCard}>
                 <View style={[styles.tipIcon, { backgroundColor: tip.color + '20' }]}>
-                  <MaterialCommunityIcons name={tip.icon} size={20} color={tip.color} />
+                  <MaterialCommunityIcons name={tip.icon as any} size={20} color={tip.color} />
                 </View>
                 <Text style={styles.tipText}>{tip.text}</Text>
               </View>
@@ -211,19 +265,19 @@ const WaterLogScreen = () => {
           <View style={styles.customCard}>
             <TouchableOpacity
               style={styles.customButton}
-              onPress={() => handleRemoveWater(0.1)}
+              onPress={handleRemoveWater}
             >
               <MaterialCommunityIcons name="minus" size={24} color={colors.error} />
             </TouchableOpacity>
-            
+
             <View style={styles.customDisplay}>
-              <Text style={styles.customValue}>100ml</Text>
-              <Text style={styles.customLabel}>Adjust amount</Text>
+              <Text style={styles.customValue}>{customAmount}ml</Text>
+              <Text style={styles.customLabel}>Tap +/- to adjust</Text>
             </View>
-            
+
             <TouchableOpacity
               style={styles.customButton}
-              onPress={() => handleAddWater(0.1)}
+              onPress={handleAddCustom}
             >
               <MaterialCommunityIcons name="plus" size={24} color={colors.success} />
             </TouchableOpacity>
@@ -231,22 +285,26 @@ const WaterLogScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Bottom Save Button */}
+      {/* Bottom Add Custom Button */}
       <View style={styles.bottomActions}>
         <TouchableOpacity
           style={styles.saveButton}
-          onPress={() => {
-            console.log('Water logged:', waterConsumed);
-            navigation.goBack();
-          }}
+          onPress={() => handleAddWater(customAmount)}
           activeOpacity={0.8}
+          disabled={saving}
         >
           <LinearGradient
             colors={[colors.info, '#2563EB']}
             style={styles.saveButtonGradient}
           >
-            <MaterialCommunityIcons name="check-circle" size={20} color="white" />
-            <Text style={styles.saveButtonText}>Save Water Log</Text>
+            {saving ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="water-plus" size={20} color="white" />
+                <Text style={styles.saveButtonText}>Add {customAmount}ml</Text>
+              </>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -274,7 +332,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
@@ -284,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   headerCenter: {
     flex: 1,
@@ -308,7 +366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
 
   heroSection: {
@@ -321,13 +379,13 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   progressCircle: {
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 3,
@@ -423,7 +481,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
     borderRadius: 16,
     position: 'relative',
   },
@@ -449,7 +507,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   logRow: {
     flexDirection: 'row',
@@ -486,7 +544,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   tipIcon: {
     width: 40,
@@ -510,13 +568,13 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
   },
   customButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },

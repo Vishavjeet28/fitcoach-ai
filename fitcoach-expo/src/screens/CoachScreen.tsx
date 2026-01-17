@@ -6,69 +6,255 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Image,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   StatusBar,
+  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AIService from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../hooks/useSubscription';
+import { analyticsAPI } from '../services/api';
+import { UsageLimitBanner } from '../components/UsageLimitBanner';
+import { PaywallModal } from '../components/PaywallModal';
+import { useNavigation } from '@react-navigation/native';
 
-const colors = {
-  primary: '#13ec80',
-  primaryDark: '#0fb863',
-  backgroundDark: '#102219',
-  surfaceDark: '#16261f',
-  textPrimary: '#ffffff',
-  textSecondary: '#9CA3AF',
-  textTertiary: '#6B7280',
-  warning: '#FBBF24',
-  info: '#60A5FA',
-  success: '#10B981',
+// Clean Light Theme
+const theme = {
+  bg: '#FAFAFA',
+  primary: '#26d9bb', // Teal
+  primaryDark: '#1fbda1',
+  textMain: '#1e293b',
+  textSub: '#64748b',
+  textTertiary: '#94a3b8',
+  surface: '#FFFFFF',
+  aiBubble: '#F1F5F9', // Light Slate for AI
+  userBubble: '#26d9bb', // Teal for User
+  border: '#e2e8f0',
+  error: '#ef4444',
+  success: '#10b981',
 };
 
 interface Message {
   id: number;
   role: 'user' | 'assistant';
   content: string;
+  type?: 'text' | 'meal-card';
+  mealData?: any;
 }
 
-export default function CoachScreen() {
-  const { isLoading, isAuthenticated } = useAuth();
-  const isAuthReady = !isLoading;
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+// ----------------------
+// ANIMATED COMPONENTS
+// ----------------------
+
+// 1. Pulsing Online Dot
+const PulsingDot = () => {
+  const anim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 1.5,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.onlineBadge}>
+      <Animated.View
+        style={[
+          styles.onlineDot,
+          {
+            transform: [{ scale: anim }],
+            opacity: anim.interpolate({ inputRange: [1, 1.5], outputRange: [1, 0.4] })
+          }
+        ]}
+      />
+      <Text style={styles.onlineText}>Online</Text>
+    </View>
+  );
+};
+
+// 2. Breathing Glow Bubble
+const BreathingBubble = ({ children }: { children: React.ReactNode }) => {
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false, // shadow props don't support native driver
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const shadowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.8] // Breathe from soft to strong
+  });
+
+  const shadowRadius = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 16] // Expand radius
+  });
+
+  return (
+    <Animated.View style={[
+      styles.bubbleAi,
+      {
+        shadowOpacity,
+        shadowRadius,
+      }
+    ]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// 3. Bouncing Dots Typing Indicator
+const TypingIndicator = () => {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  const animateDot = (anim: Animated.Value, delay: number) => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: -6,
+          duration: 400,
+          delay,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  useEffect(() => {
+    animateDot(dot1, 0);
+    animateDot(dot2, 200);
+    animateDot(dot3, 400);
+  }, []);
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', height: 20 }}>
+      {[dot1, dot2, dot3].map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: theme.textSub,
+            transform: [{ translateY: anim }]
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
+
+export default function CoachScreen() {
+  const { isLoading, isAuthenticated, refreshUser } = useAuth();
+  const { isAiLimitReached, refreshAiUsage } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
+  const isAuthReady = !isLoading;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation<any>();
+
+  // State
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1,
+      role: 'assistant',
+      content: 'Hello! I\'m your personal AI fitness coach. How can I help you reach your goals today?',
+      type: 'text'
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Stats State
+  const [stats, setStats] = useState({
+    caloriesLeft: 2000,
+    proteinLeft: 150,
+    goal: 'Maintenance'
+  });
+
+  useEffect(() => {
+    fetchDailyStats();
+  }, []);
+
+  const fetchDailyStats = async () => {
+    try {
+      const daily = await analyticsAPI.getDailySummary();
+      const s = daily.summary;
+      const left = Math.max(0, (s.calorieTarget || 2000) - (s.totalCalories || 0));
+      const pLeft = Math.max(0, 150 - (s.totalProtein || 0));
+      setStats({
+        caloriesLeft: left,
+        proteinLeft: pLeft,
+        goal: 'Fitness'
+      });
+    } catch (e) {
+      console.log('Error fetching coach stats', e);
+    }
+  };
+
+  useEffect(() => {
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    // Don't send while auth is still restoring.
-    if (!input.trim() || loading || !isAuthReady) return;
+  const handleSendMessage = async (textOverride?: string) => {
+    const textToSend = textOverride || input;
 
-    // AI endpoints are auth protected. If user is not authenticated, show a friendly message.
+    if (!textToSend.trim() || loading || !isAuthReady) return;
+
     if (!isAuthenticated) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: 'Please sign in to use AI Coach.',
-        },
-      ]);
+      Alert.alert('Sign In Required', 'Please sign in to chat with your AI Coach.');
       return;
     }
 
-    const userMessage = input.trim();
+    if (isAiLimitReached) {
+      setShowPaywall(true);
+      return;
+    }
+
+    // Add User Message
     const userMsg: Message = {
       id: Date.now(),
       role: 'user',
-      content: userMessage,
+      content: textToSend,
+      type: 'text'
     };
 
     setMessages(prev => [...prev, userMsg]);
@@ -76,414 +262,275 @@ export default function CoachScreen() {
     setLoading(true);
 
     try {
-      // Convert messages to format expected by AI service
-      const chatHistory = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-      chatHistory.push({ role: 'user', content: userMessage });
+      // Mock "Recipe" request (Demo Logic preserved)
+      if (textToSend.toLowerCase().includes('suggest') || textToSend.toLowerCase().includes('recipe')) {
+        setTimeout(() => {
+          const aiMsg: Message = {
+            id: Date.now() + 1,
+            role: 'assistant',
+            content: "Here is a high-protein recommendation for you:",
+            type: 'meal-card',
+            mealData: {
+              title: 'Grilled Lemon Chicken',
+              image: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=500&q=80',
+              calories: 420,
+              protein: '45g',
+              time: '20 min'
+            }
+          };
+          setMessages(prev => [...prev, aiMsg]);
+          setLoading(false);
+          refreshUser();
+          refreshAiUsage();
+        }, 1500);
+        return;
+      }
 
-      // Get AI response
+      // Normal Chat
+      const chatHistory = messages.map(msg => ({ role: msg.role, content: msg.content }));
+      chatHistory.push({ role: 'user', content: textToSend });
+
       const aiResponse = await AIService.chatWithHistory(chatHistory);
 
       const aiMsg: Message = {
         id: Date.now() + 1,
         role: 'assistant',
         content: aiResponse,
+        type: 'text'
       };
 
       setMessages(prev => [...prev, aiMsg]);
+      refreshUser();
+      refreshAiUsage();
     } catch (error: any) {
-      console.error('Failed to send message:', error);
-      const errorMsg: Message = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-      };
+      const errorMsg: Message = { id: Date.now() + 1, role: 'assistant', content: 'I encountered an issue connecting to the server. Please try again.' };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
-      setLoading(false);
+      if (!textToSend.toLowerCase().includes('suggest')) setLoading(false);
     }
   };
 
-  const getSuggestedPrompts = (): Array<{ icon: any; text: string; prompt: string }> => [
-    { icon: 'food-apple', text: 'What should I eat for breakfast?', prompt: 'What should I eat for a healthy breakfast?' },
-    { icon: 'dumbbell', text: 'Create a workout plan', prompt: 'Create a beginner workout plan for weight loss' },
-    { icon: 'water', text: 'Hydration tips', prompt: 'Give me tips to drink more water daily' },
-    { icon: 'chart-line', text: 'Analyze my diet', prompt: 'How can I improve my daily diet?' },
-  ];
+  const renderStatsHeader = () => (
+    <View style={styles.statsContainer}>
+      <Text style={styles.statsTitle}>Today's Snapshot</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{stats.caloriesLeft}</Text>
+          <Text style={styles.statLabel}>Kcal Rem.</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{stats.proteinLeft}g</Text>
+          <Text style={styles.statLabel}>Protein Rem.</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>Goal</Text>
+          <Text style={styles.statLabel}>{stats.goal}</Text>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={100}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={colors.backgroundDark} />
-      
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={theme.bg} />
+      {/* <UsageLimitBanner /> */}
+
+      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
+
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerIcon}>
-            <MaterialCommunityIcons name="robot-excited" size={28} color={colors.primary} />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>AI Coach</Text>
-            <Text style={styles.headerSubtitle}>Powered by FitCoach AI</Text>
-          </View>
+        <View>
+          <Text style={styles.headerTitle}>AI Coach</Text>
+          <Text style={styles.headerSubtitle}>Always here to help</Text>
         </View>
+        <PulsingDot />
       </View>
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
-      >
-        {/* Date Badge */}
-        <View style={styles.dateBadgeContainer}>
-          <View style={styles.dateBadge}>
-            <Text style={styles.dateBadgeText}>Today</Text>
-          </View>
-        </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderStatsHeader()}
 
-        {messages.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="robot" size={64} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Start a conversation with your AI Coach</Text>
-            <Text style={styles.emptySubtitle}>
-              Ask me anything about fitness, nutrition, or healthy living!
-            </Text>
+          <View style={styles.chatArea}>
+            <Text style={styles.dateDivider}>Today</Text>
 
-            {!isAuthReady && (
-              <Text style={[styles.emptySubtitle, { marginTop: 8, color: colors.warning }]}> 
-                Getting your session ready…
-              </Text>
-            )}
+            {messages.map((msg) => (
+              <View key={msg.id} style={[
+                styles.messageRow,
+                msg.role === 'user' ? styles.messageRowUser : styles.messageRowAi
+              ]}>
+                {/* Avatars */}
+                {msg.role === 'assistant' && (
+                  <View style={styles.avatarAi}>
+                    <MaterialCommunityIcons name="robot" size={20} color={theme.primary} />
+                  </View>
+                )}
 
-            {/* Suggested Prompts */}
-            <View style={styles.suggestedPromptsContainer}>
-              <Text style={styles.suggestedPromptsTitle}>Suggested Questions:</Text>
-              {getSuggestedPrompts().map((prompt, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.suggestedPromptCard}
-                  onPress={() => setInput(prompt.prompt)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons name={prompt.icon} size={20} color={colors.primary} />
-                  <Text style={styles.suggestedPromptText}>{prompt.text}</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ) : (
-          messages.map((message) => (
-            <View
-              key={message.id}
-              style={[
-                styles.messageContainer,
-                message.role === 'user' ? styles.userMessageContainer : styles.assistantMessageContainer,
-              ]}
-            >
-              {message.role === 'assistant' && (
-                <View style={styles.assistantAvatar}>
-                  <MaterialCommunityIcons name="robot" size={20} color={colors.primary} />
+                {/* Bubbles */}
+                <View style={{ maxWidth: '80%' }}>
+                  {msg.role === 'assistant' && <Text style={styles.senderName}>FitCoach AI</Text>}
+
+                  {msg.role === 'assistant' ? (
+                    <BreathingBubble>
+                      <Text style={styles.msgTextAi}>{msg.content}</Text>
+                    </BreathingBubble>
+                  ) : (
+                    <View style={[styles.bubble, styles.bubbleUser]}>
+                      <Text style={styles.msgTextUser}>{msg.content}</Text>
+                    </View>
+                  )}
+
+                  {/* Meal Card Attachment */}
+                  {msg.type === 'meal-card' && msg.mealData && (
+                    <View style={styles.cardAttachment}>
+                      <Image source={{ uri: msg.mealData.image }} style={styles.cardImage} />
+                      <View style={styles.cardBody}>
+                        <Text style={styles.cardTitle}>{msg.mealData.title}</Text>
+                        <Text style={styles.cardMeta}>{msg.mealData.calories} kcal • {msg.mealData.protein} Protein</Text>
+                        <Text style={styles.cardTime}>⏱ {msg.mealData.time}</Text>
+                        <TouchableOpacity style={styles.cardButton} onPress={() => { }}>
+                          <Text style={styles.cardButtonText}>View Recipe</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 </View>
-              )}
-              <View
-                style={[
-                  styles.messageBubble,
-                  message.role === 'user' ? styles.userBubble : styles.assistantBubble,
-                ]}
-              >
-                <Text style={[
-                  styles.messageText,
-                  message.role === 'user' ? styles.userText : styles.assistantText,
-                ]}>
-                  {message.content}
-                </Text>
               </View>
-              {message.role === 'user' && (
-                <View style={styles.userAvatar}>
-                  <MaterialCommunityIcons name="account" size={20} color="white" />
+            ))}
+
+            {loading && (
+              <View style={styles.messageRow}>
+                <View style={styles.avatarAi}>
+                  <MaterialCommunityIcons name="robot" size={20} color={theme.primary} />
                 </View>
-              )}
-            </View>
-          ))
-        )}
-
-        {loading && (
-          <View style={styles.loadingMessageContainer}>
-            <View style={styles.assistantAvatar}>
-              <MaterialCommunityIcons name="robot" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.loadingBubble}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loadingText}>Thinking...</Text>
-            </View>
+                <BreathingBubble>
+                  <TypingIndicator />
+                </BreathingBubble>
+              </View>
+            )}
           </View>
-        )}
-      </ScrollView>
+        </ScrollView>
 
-      {/* Input Area */}
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            placeholder="Ask me anything..."
-            placeholderTextColor={colors.textTertiary}
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!input.trim() || loading || !isAuthReady) && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={!input.trim() || loading || !isAuthReady}
-            activeOpacity={0.7}
-          >
-            <LinearGradient
-              colors={input.trim() && !loading && isAuthReady ? [colors.primary, colors.primaryDark] : ['#374151', '#1F2937']}
-              style={styles.sendButtonGradient}
+        {/* Input Area */}
+        <View style={styles.inputArea}>
+          {/* Quick Chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContainer}>
+            {[
+              'Suggest a high protein dinner',
+              'Plan a workout',
+              'How is my water intake?',
+              'Give me motivation'
+            ].map((chip, i) => (
+              <TouchableOpacity key={i} style={styles.chip} onPress={() => handleSendMessage(chip)}>
+                <Text style={styles.chipText}>{chip}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Ask your coach anything..."
+              placeholderTextColor={theme.textTertiary}
+              value={input}
+              onChangeText={setInput}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
+              onPress={() => handleSendMessage()}
+              disabled={!input.trim()}
             >
-              <MaterialCommunityIcons 
-                name="send" 
-                size={20} 
-                color={input.trim() && !loading && isAuthReady ? 'white' : colors.textTertiary} 
-              />
-            </LinearGradient>
-          </TouchableOpacity>
+              <MaterialCommunityIcons name="arrow-up" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundDark,
-  },
+  container: { flex: 1, backgroundColor: theme.bg },
   header: {
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    paddingTop: 60, paddingBottom: 16, paddingHorizontal: 20,
+    backgroundColor: theme.bg,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: theme.border
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surfaceDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  dateBadgeContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  dateBadge: {
-    backgroundColor: colors.surfaceDark,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  dateBadgeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  suggestedPromptsContainer: {
-    width: '100%',
-    marginTop: 16,
-  },
-  suggestedPromptsTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  suggestedPromptCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceDark,
+  headerTitle: { fontSize: 24, fontWeight: '800', color: theme.textMain },
+  headerSubtitle: { fontSize: 13, color: theme.textSub, marginTop: 2 },
+
+  onlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#dcfce7' },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success },
+  onlineText: { fontSize: 12, fontWeight: '600', color: theme.success },
+
+  scrollContent: { paddingBottom: 20 },
+
+  // Stats
+  statsContainer: { margin: 20, padding: 20, backgroundColor: theme.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.border, shadowColor: '#000', shadowOpacity: 0.02, elevation: 2 },
+  statsTitle: { fontSize: 13, fontWeight: '700', color: theme.textSub, textTransform: 'uppercase', marginBottom: 16 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statItem: { alignItems: 'center', flex: 1 },
+  statValue: { fontSize: 18, fontWeight: '800', color: theme.textMain },
+  statLabel: { fontSize: 11, color: theme.textSub, marginTop: 4 },
+  statDivider: { width: 1, height: 30, backgroundColor: theme.border },
+
+  // Chat
+  chatArea: { paddingHorizontal: 20 },
+  dateDivider: { textAlign: 'center', color: theme.textTertiary, fontSize: 12, marginBottom: 20, marginTop: 10 },
+
+  messageRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  messageRowUser: { flexDirection: 'row-reverse' },
+  messageRowAi: { justifyContent: 'flex-start' },
+
+  avatarAi: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border },
+  senderName: { fontSize: 11, color: theme.textSub, marginBottom: 4, marginLeft: 2 },
+
+  bubble: { padding: 16, borderRadius: 18, maxWidth: '100%' },
+
+  // Note: bubbleAi styles are mainly handled by the BreathingBubble component now, only keeping basic layout here if needed, but handled inline style merging
+  bubbleAi: {
+    backgroundColor: theme.surface,
+    borderTopLeftRadius: 4,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 0 },
+    // opacity/radius handled by animation
+    elevation: 6,
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 18,
+    maxWidth: '100%'
   },
-  suggestedPromptText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    gap: 8,
-  },
-  userMessageContainer: {
-    justifyContent: 'flex-end',
-  },
-  assistantMessageContainer: {
-    justifyContent: 'flex-start',
-  },
-  assistantAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-  },
-  userAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messageBubble: {
-    maxWidth: '75%',
-    padding: 12,
-    borderRadius: 16,
-  },
-  userBubble: {
-    backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
-  },
-  assistantBubble: {
-    backgroundColor: colors.surfaceDark,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  userText: {
-    color: 'white',
-  },
-  assistantText: {
-    color: colors.textPrimary,
-  },
-  loadingMessageContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  loadingBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceDark,
-    padding: 12,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  inputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingBottom: 32,
-    backgroundColor: colors.backgroundDark,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surfaceDark,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.textPrimary,
-    maxHeight: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-  sendButtonGradient: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
+  bubbleUser: { backgroundColor: theme.primary, borderTopRightRadius: 4 },
+
+  msgText: { fontSize: 15, lineHeight: 22 },
+  msgTextAi: { color: theme.textMain, fontSize: 15, lineHeight: 22 },
+  msgTextUser: { color: 'white', fontSize: 15, lineHeight: 22 },
+
+  // Card Attachment
+  cardAttachment: { marginTop: 12, backgroundColor: theme.surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: theme.border },
+  cardImage: { width: '100%', height: 140, resizeMode: 'cover' },
+  cardBody: { padding: 16 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: theme.textMain, marginBottom: 4 },
+  cardMeta: { fontSize: 13, color: theme.textSub, marginBottom: 8 },
+  cardTime: { fontSize: 12, color: theme.textTertiary, fontStyle: 'italic', marginBottom: 12 },
+  cardButton: { paddingVertical: 10, alignItems: 'center', borderRadius: 8, backgroundColor: theme.bg, borderWidth: 1, borderColor: theme.border },
+  cardButtonText: { fontSize: 13, fontWeight: '600', color: theme.textMain },
+
+  // Input
+  inputArea: { backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border, paddingBottom: 24 },
+  chipsContainer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border },
+  chipText: { fontSize: 13, color: theme.textSub },
+
+  inputRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, backgroundColor: theme.surface, borderRadius: 24, padding: 8, borderWidth: 1, borderColor: theme.border, gap: 8 },
+  input: { flex: 1, fontSize: 15, color: theme.textMain, paddingHorizontal: 12, maxHeight: 100 },
+  sendButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
+  sendButtonDisabled: { backgroundColor: theme.border },
 });

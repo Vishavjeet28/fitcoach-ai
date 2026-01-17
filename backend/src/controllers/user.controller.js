@@ -1,4 +1,101 @@
 import { query } from '../config/database.js';
+import FLE from '../services/fitnessLogicEngine.js';
+
+/**
+ * CRITICAL: POST /api/user/profile-setup
+ * 
+ * One-time profile setup. Profile completion is IMMUTABLE once set.
+ * 
+ * PRODUCTION RULE: If profile_completed = TRUE, return 409 Conflict
+ * Do NOT allow re-submission.
+ * 
+ * On success:
+ * - Saves: age, gender, height, weight, activity_level, goal
+ * - Calculates: BMR, TDEE, calorie targets, macro targets
+ * - Sets: profile_completed = TRUE, profile_completed_at = NOW()
+ */
+export const setupProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { age, gender, height, weight, activityLevel, goal } = req.body;
+
+    // STEP 1: Check if profile is ALREADY completed
+    const existingResult = await query(
+      `SELECT profile_completed FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { profile_completed } = existingResult.rows[0];
+
+    // PRODUCTION RULE: Profile setup is ONE-TIME ONLY
+    if (profile_completed === true) {
+      return res.status(409).json({
+        error: 'Profile already completed',
+        code: 'PROFILE_ALREADY_COMPLETED',
+        message: 'This user has already completed profile setup and cannot re-submit.'
+      });
+    }
+
+    // STEP 2: Update profile with provided data
+    const updateResult = await query(
+      `UPDATE users 
+       SET age = $1,
+           gender = $2,
+           height = $3,
+           weight = $4,
+           activity_level = $5,
+           goal = $6,
+           profile_completed = TRUE,
+           profile_completed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $7
+       RETURNING id, email, name, age, gender, height, weight, 
+                 activity_level, goal, profile_completed, profile_completed_at`,
+      [age, gender, height, weight, activityLevel, goal, userId]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = updateResult.rows[0];
+
+    // STEP 3: Recalculate fitness targets (BMR, TDEE, calorie targets)
+    try {
+      await FLE.updateUserTargetsInDB(userId);
+      console.log(`✅ [PROFILE SETUP] Targets recalculated for user ${userId}`);
+    } catch (fleError) {
+      console.error(`⚠️ [PROFILE SETUP] FLE recalculation failed for user ${userId}:`, fleError);
+      // Don't fail the request, targets can be recalculated later
+    }
+
+    // STEP 4: Return success with updated user
+    res.status(201).json({
+      message: 'Profile setup completed successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        age: user.age,
+        gender: user.gender,
+        height: user.height,
+        weight: user.weight,
+        activityLevel: user.activity_level,
+        goal: user.goal,
+        profile_completed: user.profile_completed,
+        profileCompletedAt: user.profile_completed_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Profile setup error:', error);
+    res.status(500).json({ error: 'Profile setup failed' });
+  }
+};
 
 // Get user profile
 export const getUserProfile = async (req, res) => {
@@ -7,8 +104,18 @@ export const getUserProfile = async (req, res) => {
 
     const result = await query(
       `SELECT id, email, name, weight, height, age, gender,
-              activity_level, goal, calorie_target, dietary_restrictions,
-              preferred_cuisines, created_at, last_login
+              activity_level as "activityLevel", 
+              goal, 
+              calorie_target as "calorieTarget",
+              profile_completed as "profile_completed",
+              COALESCE(bmr_cached, calorie_target, 2000) as "bmr",
+              COALESCE(tdee_cached, calorie_target, 2000) as "tdee",
+              dietary_restrictions as "dietaryRestrictions",
+              preferred_cuisines as "preferredCuisines", 
+              created_at as "createdAt", 
+              last_login as "lastLogin",
+              subscription_status as "subscriptionStatus", 
+              ai_usage_count as "aiUsageCount"
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -23,6 +130,70 @@ export const getUserProfile = async (req, res) => {
     res.status(500).json({ error: 'Failed to get user profile' });
   }
 };
+
+// Update user profile (Base Data)
+export const updateUserProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      age, gender, height, weight, activity_level, goal, profile_completed,
+      preferences // Optional: goal_style, meal_style, etc.
+    } = req.body;
+
+    // 1. Build dynamic update query for USERS table
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (age !== undefined) { updates.push(`age = $${paramCount++}`); values.push(age); }
+    if (gender !== undefined) { updates.push(`gender = $${paramCount++}`); values.push(gender); }
+    if (height !== undefined) { updates.push(`height = $${paramCount++}`); values.push(height); }
+    if (weight !== undefined) { updates.push(`weight = $${paramCount++}`); values.push(weight); }
+    if (activity_level !== undefined) { updates.push(`activity_level = $${paramCount++}`); values.push(activity_level); }
+    if (goal !== undefined) { updates.push(`goal = $${paramCount++}`); values.push(goal); }
+    if (profile_completed !== undefined) { updates.push(`profile_completed = $${paramCount++}`); values.push(profile_completed); }
+
+    updates.push(`updated_at = NOW()`);
+
+    // Only update if there are fields (to avoid SQL error on empty update)
+    if (updates.length > 1) { // >1 because updated_at is always there
+         // Add userId as final param
+        values.push(userId);
+        
+        await query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+        values
+        );
+    }
+
+    // 2. Handle Preferences (if sent) - Ideally these go to a user_preferences table
+    // For now, we'll verify they're received (Logging for MVP)
+    if (preferences) {
+        // e.g., UPDATE user_preferences ...
+        console.log('Preferences update request:', preferences);
+    }
+
+    // 3. Return updated profile
+    const result = await query(
+      `SELECT id, email, name, weight, height, age, gender,
+              activity_level as "activityLevel", 
+              goal, 
+              profile_completed as "profile_completed"
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    res.json({ 
+        message: 'Profile updated successfully',
+        user: result.rows[0] 
+    });
+
+  } catch (error) {
+    console.error('Update user profile error:', error);
+    res.status(500).json({ error: 'Failed to update user profile' });
+  }
+};
+
 
 // Export all user data
 export const exportUserData = async (req, res) => {

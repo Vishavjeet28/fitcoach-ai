@@ -11,8 +11,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-// TEMPORARILY DISABLED: Firebase not installed yet
-// import { logError as firebaseLogError } from '../config/firebase';
+import { logError as firebaseLogError } from '../config/firebase';
 import logger from '../utils/logger';
 
 interface Props {
@@ -52,16 +51,15 @@ class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     });
 
-    // TEMPORARILY DISABLED: Firebase not installed yet
     // Send error to Firebase Crashlytics
-    // try {
-    //   firebaseLogError(error, {
-    //     componentStack: errorInfo.componentStack,
-    //     type: 'ErrorBoundary',
-    //   });
-    // } catch (e) {
-    //   console.error('[ErrorBoundary] Failed to send error to Firebase:', e);
-    // }
+    try {
+      firebaseLogError(error, {
+        componentStack: errorInfo.componentStack,
+        type: 'ErrorBoundary',
+      });
+    } catch (e) {
+      console.error('[ErrorBoundary] Failed to send error to Firebase:', e);
+    }
   }
 
   handleReset = (): void => {

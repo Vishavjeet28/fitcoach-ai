@@ -345,3 +345,122 @@ export const getProgressOverview = async (req, res) => {
     res.status(500).json({ error: 'Failed to get progress overview' });
   }
 };
+
+// ============================================================================
+// NEW ANALYTICS SYSTEM (STRICT)
+// ============================================================================
+import ALE from '../services/analyticsLogicEngine.js'; // Ensure this path is correct
+
+export const getAnalyticsData = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { period } = req.query; // '1w', '1m', '3m', '6m', '1y'
+
+        // Check if backfill is needed
+        const checkRes = await query(`SELECT id FROM analytics_daily_snapshots WHERE user_id = $1 LIMIT 1`, [userId]);
+        if (checkRes.rows.length === 0) {
+            console.log('Backfilling analytics for user', userId);
+            await ALE.backfillHistory(userId);
+        }
+
+        let sql = '';
+        let params = [userId];
+
+        // Determine Date Range
+        const now = new Date();
+        let startDate = new Date();
+        
+        // Date Logic
+        if (period === '1w') startDate.setDate(now.getDate() - 7);
+        else if (period === '1m') startDate.setMonth(now.getMonth() - 1);
+        else if (period === '3m') startDate.setMonth(now.getMonth() - 3);
+        else if (period === '6m') startDate.setMonth(now.getMonth() - 6);
+        else if (period === '1y') startDate.setFullYear(now.getFullYear() - 1);
+        else startDate.setDate(now.getDate() - 30); // Default
+
+        const startDateStr = startDate.toISOString().split('T')[0];
+
+        // Query Logic based on Resolution
+        if (['1w', '1m'].includes(period)) {
+            // DAILY RESOLUTION
+            sql = `
+                SELECT 
+                    date,
+                    weight_kg as weight,
+                    weight_rolling_avg_7d as trend,
+                    total_calories as calories,
+                    calorie_target,
+                    protein_g as protein,
+                    carbs_g as carbs,
+                    fat_g as fat,
+                    workout_completed,
+                    workout_calories_burned
+                FROM analytics_daily_snapshots
+                WHERE user_id = $1 AND date >= $2
+                ORDER BY date ASC
+            `;
+            params.push(startDateStr);
+        } 
+        else if (['3m', '6m'].includes(period)) {
+            // WEEKLY RESOLUTION
+            sql = `
+                SELECT 
+                    DATE_TRUNC('week', date)::DATE as date,
+                    ROUND(AVG(weight_kg), 2) as weight,
+                    ROUND(AVG(weight_rolling_avg_7d), 2) as trend,
+                    ROUND(AVG(total_calories)) as calories,
+                    ROUND(AVG(calorie_target)) as calorie_target,
+                    ROUND(AVG(protein_g)) as protein,
+                    ROUND(AVG(carbs_g)) as carbs,
+                    ROUND(AVG(fat_g)) as fat
+                FROM analytics_daily_snapshots
+                WHERE user_id = $1 AND date >= $2
+                GROUP BY DATE_TRUNC('week', date)
+                ORDER BY date ASC
+            `;
+            params.push(startDateStr);
+        }
+        else {
+            // MONTHLY RESOLUTION
+            sql = `
+                SELECT 
+                    DATE_TRUNC('month', date)::DATE as date,
+                    ROUND(AVG(weight_kg), 2) as weight,
+                    ROUND(AVG(weight_rolling_avg_7d), 2) as trend,
+                    ROUND(AVG(total_calories)) as calories,
+                    ROUND(AVG(calorie_target)) as calorie_target,
+                    ROUND(AVG(protein_g)) as protein,
+                    ROUND(AVG(carbs_g)) as carbs,
+                    ROUND(AVG(fat_g)) as fat
+                FROM analytics_daily_snapshots
+                WHERE user_id = $1 AND date >= $2
+                GROUP BY DATE_TRUNC('month', date)
+                ORDER BY date ASC
+            `;
+            params.push(startDateStr);
+        }
+
+        const result = await query(sql, params);
+        
+        // Transform for chart consumption if needed, or send raw
+        res.json({
+            period,
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error('Analytics Error:', error);
+        res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+};
+
+export const syncAnalytics = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        await ALE.backfillHistory(userId);
+        res.json({ message: 'Analytics synced' });
+    } catch (error) {
+        console.error('Sync error:', error);
+        res.status(500).json({ error: 'Sync failed' });
+    }
+};
