@@ -9,6 +9,7 @@
  * ============================================================================
  */
 
+import { google } from 'googleapis';
 import billingService from '../services/billingService.js';
 
 // ============================================================================
@@ -256,12 +257,87 @@ export const appleWebhook = async (req, res) => {
  */
 export const googleWebhook = async (req, res) => {
   try {
-    // TODO: Implement Google RTDN (Real-time Developer Notifications)
-    // Reference: https://developer.android.com/google/play/billing/getting-ready
-    
-    console.log('[BILLING] Google webhook received:', JSON.stringify(req.body).slice(0, 500));
+    console.log('[BILLING] Google webhook received');
 
-    // Placeholder response
+    // 1. Decode Pub/Sub message
+    if (!req.body.message || !req.body.message.data) {
+      console.warn('[BILLING] Invalid Google Pub/Sub message format');
+      return res.status(400).send('Invalid message format');
+    }
+
+    const encodedData = req.body.message.data;
+    const decodedData = Buffer.from(encodedData, 'base64').toString('utf-8');
+    const notification = JSON.parse(decodedData);
+
+    console.log('[BILLING] Decoded notification:', JSON.stringify(notification).slice(0, 500));
+
+    // 2. Check if it's a subscription notification
+    if (!notification.subscriptionNotification) {
+      console.log('[BILLING] Not a subscription notification, ignoring.');
+      return res.status(200).send('Ignored');
+    }
+
+    const { subscriptionId, purchaseToken } = notification.subscriptionNotification;
+    const packageName = notification.packageName;
+
+    // 3. Authenticate with Google
+    // Uses GOOGLE_APPLICATION_CREDENTIALS env var or default credentials
+    let androidPublisher;
+    
+    // Allow mock injection for testing
+    if (req.app && req.app.get && req.app.get('mockAndroidPublisher')) {
+      androidPublisher = req.app.get('mockAndroidPublisher');
+    } else {
+      const auth = new google.auth.GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/androidpublisher']
+      });
+
+      androidPublisher = google.androidpublisher({
+        version: 'v3',
+        auth
+      });
+    }
+
+    // 4. Get subscription details
+    const purchase = await androidPublisher.purchases.subscriptions.get({
+      packageName,
+      subscriptionId,
+      token: purchaseToken
+    });
+
+    const purchaseData = purchase.data;
+    console.log('[BILLING] Google purchase details:', JSON.stringify(purchaseData).slice(0, 500));
+
+    // 5. Map status
+    // paymentState: 0=Pending, 1=Received(Active), 2=Trial, 3=Pending Deferred
+    let status = 'active';
+    if (purchaseData.paymentState === 2) {
+      status = 'trialing';
+    } else if (purchaseData.paymentState === 0) {
+      status = 'past_due';
+    }
+
+    // Check expiry
+    const expiryTime = parseInt(purchaseData.expiryTimeMillis, 10);
+    if (Date.now() > expiryTime) {
+      status = 'expired';
+    }
+
+    // Check cancellation
+    let cancelledAt = null;
+    if (purchaseData.userCancellationTimeMillis) {
+      cancelledAt = new Date(parseInt(purchaseData.userCancellationTimeMillis, 10));
+    }
+
+    // 6. Sync with BillingService
+    const billing = (req.app && req.app.get && req.app.get('mockBillingService')) || billingService;
+
+    await billing.syncSubscriptionFromProvider(subscriptionId, {
+      status: status,
+      current_period_end: new Date(expiryTime),
+      cancelled_at: cancelledAt
+    });
+
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Google webhook error:', error);
