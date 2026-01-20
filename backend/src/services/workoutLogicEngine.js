@@ -590,8 +590,16 @@ class WorkoutLogicEngine {
       tunedProgram.cooldown = COOLDOWN_ROUTINE;
 
       // 5. Enrich and calculate stats
+      // Optimize: Fetch all exercises in a single DB query (Fix N+1)
+      const allExercises = tunedProgram.splits.flatMap(s => s.exercises);
+      const enrichedAll = await this.enrichExercisesWithDB(allExercises);
+
+      let cursor = 0;
       for (let i = 0; i < tunedProgram.splits.length; i++) {
-        tunedProgram.splits[i].exercises = await this.enrichExercisesWithDB(tunedProgram.splits[i].exercises);
+        const splitCount = tunedProgram.splits[i].exercises.length;
+        tunedProgram.splits[i].exercises = enrichedAll.slice(cursor, cursor + splitCount);
+        cursor += splitCount;
+
         tunedProgram.splits[i].estimated_calories = calculateSessionCalories(
           tunedProgram.splits[i].exercises,
           userProfile.weight_kg
