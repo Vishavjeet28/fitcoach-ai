@@ -387,18 +387,45 @@ export default function ActiveWorkoutScreen() {
     };
 
     const handleCancelWorkout = () => {
+        if (isGuest) {
+            Alert.alert(
+                'Exit Workout?',
+                'Guest progress is lost if you exit.',
+                [
+                    { text: 'Keep Going', style: 'cancel' },
+                    {
+                        text: 'Exit',
+                        style: 'destructive',
+                        onPress: () => navigation.goBack(),
+                    },
+                ]
+            );
+            return;
+        }
+
         Alert.alert(
-            'Cancel Workout?',
-            'Your progress will not be saved.',
+            'Pause & Exit?',
+            'Your progress will be saved so you can resume later.',
             [
                 { text: 'Keep Going', style: 'cancel' },
                 {
-                    text: 'Cancel',
+                    text: 'Discard Workout',
                     style: 'destructive',
                     onPress: async () => {
-                        if (!isGuest) {
+                        try {
                             await liveWorkoutAPI.cancel();
+                        } catch (e) {
+                            console.error(e);
                         }
+                        navigation.goBack();
+                    },
+                },
+                {
+                    text: 'Save & Exit',
+                    style: 'default',
+                    onPress: () => {
+                        // Simply navigating back preserves the active session in the database
+                        // The user can resume by entering the screen again
                         navigation.goBack();
                     },
                 },
@@ -440,15 +467,29 @@ export default function ActiveWorkoutScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
+            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={handleCancelWorkout} style={styles.iconBtn}>
                     <MaterialCommunityIcons name="close" size={24} color={theme.textMain} />
                 </TouchableOpacity>
 
-                <View style={{ alignItems: 'center' }}>
-                    <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
-                    <Text style={styles.subText}>ACTIVE TIME</Text>
-                </View>
+                <TouchableOpacity
+                    onPress={() => setIsActive(!isActive)}
+                    style={{ alignItems: 'center' }}
+                    activeOpacity={0.7}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.timerText, !isActive && { color: theme.textSub }]}>{formatTime(elapsedSeconds)}</Text>
+                        <MaterialCommunityIcons
+                            name={isActive ? "pause-circle" : "play-circle"}
+                            size={24}
+                            color={isActive ? theme.textSub : theme.success}
+                        />
+                    </View>
+                    <Text style={[styles.subText, !isActive && { color: theme.warning }]}>
+                        {isActive ? "ACTIVE TIME" : "WORKOUT PAUSED"}
+                    </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity onPress={handleFinishWorkout} style={styles.finishBtn}>
                     <Text style={styles.finishText}>Finish</Text>
