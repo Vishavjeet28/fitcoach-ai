@@ -10,6 +10,7 @@
  */
 
 import billingService from '../services/billingService.js';
+import { validateAppleReceipt, validateGoogleReceipt } from '../services/receiptValidation.js';
 
 // ============================================================================
 // GET SUBSCRIPTION STATUS
@@ -103,10 +104,30 @@ export const createSubscription = async (req, res) => {
     // For now, we allow direct calls for testing/manual subscriptions.
     // In production, add: if (!receipt) return res.status(400).json({ error: 'Receipt required' });
 
-    if (provider === 'apple' || provider === 'google') {
-      // TODO: Validate receipt with Apple/Google servers
-      // This is critical for production!
-      console.warn(`[BILLING] Receipt validation for ${provider} not implemented!`);
+    if (provider === 'apple') {
+      if (!receipt) {
+        return res.status(400).json({ error: 'Receipt required for Apple subscription' });
+      }
+
+      const validation = await validateAppleReceipt(receipt);
+      if (!validation.isValid) {
+        console.warn(`[BILLING] Invalid Apple receipt for user ${userId}:`, validation);
+        return res.status(400).json({ error: 'Invalid Apple receipt', details: validation });
+      }
+    } else if (provider === 'google') {
+      if (!receipt) {
+        return res.status(400).json({ error: 'Receipt (purchase token) required for Google subscription' });
+      }
+      // For Google, provider_subscription_id matches the product ID (e.g. monthly_pro)
+      if (!provider_subscription_id) {
+        return res.status(400).json({ error: 'Product ID (provider_subscription_id) required for Google subscription' });
+      }
+
+      const validation = await validateGoogleReceipt(receipt, provider_subscription_id);
+      if (!validation.isValid) {
+        console.warn(`[BILLING] Invalid Google receipt for user ${userId}:`, validation);
+        return res.status(400).json({ error: 'Invalid Google receipt', details: validation });
+      }
     }
 
     const subscription = await billingService.createSubscription(userId, {
