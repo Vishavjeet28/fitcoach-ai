@@ -13,6 +13,7 @@
  */
 
 import { query } from '../config/database.js';
+import { validateReceipt } from './receiptValidationService.js';
 
 // ============================================================================
 // TIER LIMITS (NON-NEGOTIABLE)
@@ -547,6 +548,96 @@ export const getSubscriptionDetails = async (userId) => {
 };
 
 // ============================================================================
+// RESTORE SUBSCRIPTION
+// ============================================================================
+
+/**
+ * Restore subscription from receipt
+ * @param {number} userId - User ID
+ * @param {string} provider - 'apple' or 'google'
+ * @param {string|Object} receipt - Receipt data
+ * @returns {Object} Restored subscription details
+ */
+export const restoreSubscription = async (userId, provider, receipt) => {
+  try {
+    // 1. Validate receipt with provider
+    const validationResult = await validateReceipt(provider, receipt);
+
+    if (!validationResult.isValid) {
+      throw new Error('Invalid receipt');
+    }
+
+    const {
+      providerSubscriptionId,
+      planId,
+      expiresDate
+    } = validationResult;
+
+    // 2. Check if subscription already exists
+    const subResult = await query(
+      `SELECT * FROM subscriptions WHERE provider_subscription_id = $1`,
+      [providerSubscriptionId]
+    );
+
+    if (subResult.rows.length > 0) {
+      const existingSub = subResult.rows[0];
+
+      // Scenario A: Subscription belongs to this user
+      if (existingSub.user_id === userId) {
+        // Sync status (renew if needed)
+        const updatedSub = await syncSubscriptionFromProvider(providerSubscriptionId, {
+          status: 'active', // Assumed active since receipt validation passed
+          current_period_end: expiresDate
+        });
+
+        return {
+          action: 'restored',
+          subscription: updatedSub
+        };
+      }
+
+      // Scenario B: Subscription belongs to another user
+      else {
+        console.warn(`[BILLING] Restore conflict: Sub ${providerSubscriptionId} belongs to user ${existingSub.user_id}, requested by ${userId}`);
+        throw new Error('This subscription is associated with another account.');
+      }
+    }
+
+    // 3. Scenario C: New subscription (not in DB)
+    // Create new subscription record
+    const newSub = await createSubscription(userId, {
+      plan_id: planId,
+      provider,
+      provider_subscription_id: providerSubscriptionId,
+      provider_customer_id: validationResult.originalTransactionId,
+      // We don't have price from receipt validation usually, so we rely on plan defaults
+    });
+
+    // Manually set the expiry from validation result (since createSubscription defaults to now + duration)
+    // This is important if restoring an older purchase that might be mid-cycle
+    if (expiresDate) {
+      await query(
+        `UPDATE subscriptions
+         SET current_period_end = $1, expires_at = $1
+         WHERE id = $2`,
+        [expiresDate, newSub.id]
+      );
+      newSub.current_period_end = expiresDate;
+      newSub.expires_at = expiresDate;
+    }
+
+    return {
+      action: 'created',
+      subscription: newSub
+    };
+
+  } catch (error) {
+    console.error('Restore subscription error:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
 // EXPORT DEFAULT
 // ============================================================================
 
@@ -560,5 +651,6 @@ export default {
   createSubscription,
   cancelSubscription,
   syncSubscriptionFromProvider,
-  getSubscriptionDetails
+  getSubscriptionDetails,
+  restoreSubscription
 };
