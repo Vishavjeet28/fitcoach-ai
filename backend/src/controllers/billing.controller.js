@@ -10,6 +10,7 @@
  */
 
 import billingService from '../services/billingService.js';
+import googlePlayService from '../services/googlePlayService.js';
 
 // ============================================================================
 // GET SUBSCRIPTION STATUS
@@ -256,15 +257,55 @@ export const appleWebhook = async (req, res) => {
  */
 export const googleWebhook = async (req, res) => {
   try {
-    // TODO: Implement Google RTDN (Real-time Developer Notifications)
-    // Reference: https://developer.android.com/google/play/billing/getting-ready
-    
-    console.log('[BILLING] Google webhook received:', JSON.stringify(req.body).slice(0, 500));
+    // Google Pub/Sub message format
+    const message = req.body.message;
+    if (!message || !message.data) {
+      console.warn('[BILLING] Invalid Google webhook payload (missing message.data)');
+      return res.status(400).json({ error: 'Invalid payload' });
+    }
 
-    // Placeholder response
-    res.status(200).json({ received: true });
+    // Decode Base64 data
+    const decodedData = Buffer.from(message.data, 'base64').toString('utf-8');
+    const notification = JSON.parse(decodedData);
+
+    console.log('[BILLING] Google notification:', JSON.stringify(notification).slice(0, 500));
+
+    const { packageName, subscriptionNotification, testNotification } = notification;
+
+    if (testNotification) {
+      console.log(`[BILLING] Test notification received version: ${testNotification.version}`);
+      return res.status(200).send();
+    }
+
+    if (subscriptionNotification) {
+      const { subscriptionId, purchaseToken, notificationType } = subscriptionNotification;
+
+      console.log(`[BILLING] Processing subscription notification: Type=${notificationType}, ID=${subscriptionId}`);
+
+      // Verify authoritative state with Google API
+      // We do this to get the exact expiry time and status, regardless of notification type
+      const latestInfo = await googlePlayService.verifySubscription(
+        packageName,
+        subscriptionId,
+        purchaseToken
+      );
+
+      // Sync with our database
+      await billingService.syncSubscriptionFromProvider(
+        purchaseToken,
+        latestInfo
+      );
+
+      console.log('[BILLING] Subscription synced successfully');
+    }
+
+    res.status(200).send();
   } catch (error) {
     console.error('Google webhook error:', error);
+    // Return 200 to acknowledge receipt even on error, to stop Pub/Sub retries?
+    // Usually Pub/Sub retries on non-200. If it's a code error, we might want to fix and retry.
+    // If it's a bad payload, we should probably 200 to drop it.
+    // For now, 500 triggers retry.
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 };
