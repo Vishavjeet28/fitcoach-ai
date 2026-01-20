@@ -18,13 +18,23 @@ export const logExerciseValidator = [
     .isLength({ min: 1, max: 200 }),
   
   body('durationMinutes')
+    .optional()
     .isInt({ min: 1, max: 1440 })
     .withMessage('Duration must be between 1 and 1440 minutes'),
 
-  body('duration') // Alias
+  body('duration') // Unified parameter
     .optional()
-    .isInt({ min: 1, max: 1440 }),
+    .isInt({ min: 1, max: 1440 })
+    .withMessage('Duration must be between 1 and 1440 minutes'),
   
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.duration && !req.body.durationMinutes) {
+        throw new Error('Duration is required');
+      }
+      return true;
+    }),
+
   body('intensity')
     .optional()
     .isIn(['light', 'moderate', 'vigorous'])

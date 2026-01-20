@@ -54,8 +54,10 @@ export const logExercise = async (req, res) => {
     const userId = req.user.id;
     const {
       exerciseId,
-      customExerciseName,
-      durationMinutes,
+      customExerciseName: providedCustomName,
+      exerciseName, // Unified param
+      durationMinutes: providedDurationMinutes,
+      duration, // Unified param
       sets,
       reps,
       weightKg,
@@ -66,9 +68,13 @@ export const logExercise = async (req, res) => {
       workoutDate
     } = req.body;
 
+    // Coalesce parameters
+    const customExerciseName = providedCustomName || exerciseName;
+    const durationMinutes = providedDurationMinutes || duration;
+
     // Validation
     if (!exerciseId && !customExerciseName) {
-      return res.status(400).json({ error: 'Either exerciseId or customExerciseName is required' });
+      return res.status(400).json({ error: 'Either exerciseId or customExerciseName (or exerciseName) is required' });
     }
 
     if (!durationMinutes || durationMinutes <= 0) {
@@ -160,7 +166,8 @@ export const updateExerciseLog = async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
     const {
-      durationMinutes,
+      durationMinutes: providedDurationMinutes,
+      duration,
       sets,
       reps,
       weightKg,
@@ -168,6 +175,8 @@ export const updateExerciseLog = async (req, res) => {
       intensity,
       notes
     } = req.body;
+
+    const durationMinutes = providedDurationMinutes !== undefined ? providedDurationMinutes : duration;
 
     // Check if log exists and belongs to user
     const checkResult = await query(

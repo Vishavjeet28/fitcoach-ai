@@ -80,17 +80,11 @@ async function runSystemVerification() {
         }
 
         // 4. LOG EXERCISE
-        // Final Fix: Provide ALL variaions because Validator checks 'exerciseName' & 'duration', 
-        // while Controller checks 'customExerciseName' & 'durationMinutes'.
-        // It's a disconnect between Validator middleware and Controller logic.
-        // We satisfy BOTH here to pass.
         console.log('\nTesting Exercise Logging (Output)...');
         try {
             await axios.post(`${API_URL}/exercise/logs`, {
-                exerciseName: 'Running',        // For Validator
-                customExerciseName: 'Running',  // For Controller
-                duration: 30,                   // For Validator
-                durationMinutes: 30,            // For Controller
+                exerciseName: 'Running',
+                duration: 30,
                 caloriesBurned: 300,
                 intensity: 'vigorous' 
             }, { headers: { Authorization: `Bearer ${token}` } });

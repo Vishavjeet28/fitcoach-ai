@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -139,9 +139,14 @@ export default function HistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }; const filteredHistory = selectedTab === 'all'
-    ? history
-    : history.filter(entry => entry.type === selectedTab);
+  };
+
+  const filteredHistory = useMemo(() => {
+    if (selectedTab === 'all') {
+      return history;
+    }
+    return history.filter(entry => entry.type === selectedTab);
+  }, [history, selectedTab]);
 
   const getIconForType = (type: string) => {
     switch (type) {
