@@ -733,11 +733,25 @@ export const analyticsAPI = {
     return response.data;
   },
 
-  // Today Screen specific methods
   async getDailyNutrition(date: string): Promise<any> {
     const response = await apiClient.get('/analytics/daily', { params: { date } });
     return response.data.summary;
   },
+};
+
+// Recipe System APIs
+export const recipeAPI = {
+  async getRecipes(): Promise<any[]> {
+    const response = await apiClient.get('/recipes');
+    return response.data.recipes;
+  },
+  async generateRecipe(prompt: string): Promise<any> {
+    const response = await apiClient.post('/recipes/generate', { prompt });
+    return response.data.recipe;
+  },
+  async deleteRecipe(id: number): Promise<void> {
+    await apiClient.delete(`/recipes/${id}`);
+  }
 };
 
 // Food API
@@ -935,7 +949,7 @@ export const workoutAPI = {
     return response.data.history || [];
   },
 
-  async recommendProgram(userId: number): Promise<any> {
+  async recommendProgram(userId?: number): Promise<any> {
     const response = await apiClient.post('/workout/recommend', { user_id: userId });
     return response.data;
   },
@@ -1414,6 +1428,194 @@ export interface WeightData {
   goal: string;
 }
 
+// ============================================================================
+// HABITS API (Product Redesign)
+// ============================================================================
+export const habitsAPI = {
+  // Get all user habits
+  async getUserHabits(): Promise<any[]> {
+    const response = await apiClient.get('/habits');
+    return response.data.data || [];
+  },
+
+  // Get today's habits with completion status
+  async getTodayHabits(): Promise<{ date: string; data: any[] }> {
+    const response = await apiClient.get('/habits/today');
+    return response.data;
+  },
+
+  // Create new habit
+  async createHabit(data: { habit_name: string; icon?: string; color?: string }): Promise<any> {
+    const response = await apiClient.post('/habits', data);
+    return response.data;
+  },
+
+  // Toggle habit completion for today
+  async toggleHabit(habitId: string | number): Promise<any> {
+    const response = await apiClient.post(`/habits/${habitId}/toggle`);
+    return response.data;
+  },
+
+  // Delete habit
+  async deleteHabit(habitId: string | number): Promise<any> {
+    const response = await apiClient.delete(`/habits/${habitId}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// TODOS API (Product Redesign)
+// ============================================================================
+export const todosAPI = {
+  // Get today's todos
+  async getTodayTodos(): Promise<{ date: string; data: any[] }> {
+    const response = await apiClient.get('/todos/today');
+    return response.data;
+  },
+
+  // Complete/uncomplete a todo
+  async completeTodo(todoId: string | number, completed: boolean = true): Promise<any> {
+    const response = await apiClient.post(`/todos/${todoId}/complete`, { completed });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// TIPS API (Product Redesign)
+// ============================================================================
+export const tipsAPI = {
+  // Get daily tip
+  async getDailyTip(): Promise<{ tip: string; category: string }> {
+    const response = await apiClient.get('/tips/daily');
+    return response.data.data;
+  },
+
+  // Get tip history
+  async getTipHistory(days: number = 7): Promise<any[]> {
+    const response = await apiClient.get(`/tips/history?days=${days}`);
+    return response.data.data || [];
+  },
+};
+
+// ============================================================================
+// STREAKS API (Product Redesign)
+// ============================================================================
+export const streaksAPI = {
+  // Get all user streaks
+  async getUserStreaks(): Promise<any> {
+    const response = await apiClient.get('/streaks');
+    return response.data.data;
+  },
+
+  // Get streak summary for home screen
+  async getSummary(): Promise<{ current: number; overall: number; longest: number }> {
+    const response = await apiClient.get('/streaks/summary');
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// POSTURE & PAIN CARE API
+// ============================================================================
+export const postureCareAPI = {
+  // Get exercise library
+  async getExercises(targetArea?: string): Promise<any[]> {
+    const params = targetArea ? `?target_area=${targetArea}` : '';
+    const response = await apiClient.get(`/posture-care/exercises${params}`);
+    return response.data.exercises || [];
+  },
+
+  // Get user's pain preferences
+  async getPainPreferences(): Promise<any[]> {
+    const response = await apiClient.get('/posture-care/pain-preferences');
+    return response.data.preferences || [];
+  },
+
+  // Set user's pain preferences
+  async setPainPreferences(painTypes: { pain_type: string; severity?: string }[]): Promise<any> {
+    const response = await apiClient.post('/posture-care/pain-preferences', { pain_types: painTypes });
+    return response.data;
+  },
+
+  // Get today's care plan
+  async getDailyPlan(): Promise<any> {
+    const response = await apiClient.get('/posture-care/daily-plan');
+    return response.data;
+  },
+
+  // Complete a session
+  async completeSession(data: { duration_seconds: number; exercises_completed: number; feedback?: string }): Promise<any> {
+    const response = await apiClient.post('/posture-care/complete', data);
+    return response.data;
+  },
+
+  // Get session history
+  async getHistory(days: number = 30): Promise<any[]> {
+    const response = await apiClient.get(`/posture-care/history?days=${days}`);
+    return response.data.sessions || [];
+  },
+
+  async getSummary(): Promise<any> {
+    const response = await apiClient.get('/posture-care/summary');
+    return response.data;
+  },
+};
+
+// ============================================================================
+// LIVE WORKOUT API - Real-Time Workout Execution
+// ============================================================================
+export const liveWorkoutAPI = {
+  /**
+   * Start a new live workout session based on today's workout
+   */
+  async start(): Promise<any> {
+    const response = await apiClient.post('/live-workout/start');
+    return response.data;
+  },
+
+  /**
+   * Log a completed set during rest period
+   * @param data - { exercise_index, reps, weight_kg? }
+   */
+  async logSet(data: { exercise_index: number; reps: number; weight_kg?: number }): Promise<any> {
+    const response = await apiClient.post('/live-workout/log-set', data);
+    return response.data;
+  },
+
+  /**
+   * Get current live workout status (for resuming/checking state)
+   */
+  async getStatus(): Promise<any> {
+    const response = await apiClient.get('/live-workout/status');
+    return response.data;
+  },
+
+  /**
+   * End workout and save to permanent records
+   * @param data - { rating?, notes? }
+   */
+  async end(data?: { rating?: number; notes?: string }): Promise<any> {
+    const response = await apiClient.post('/live-workout/end', data || {});
+    return response.data;
+  },
+
+  /**
+   * Skip current exercise and move to next
+   */
+  async skipExercise(): Promise<any> {
+    const response = await apiClient.post('/live-workout/skip-exercise');
+    return response.data;
+  },
+
+  /**
+   * Cancel workout without saving progress
+   */
+  async cancel(): Promise<any> {
+    const response = await apiClient.post('/live-workout/cancel');
+    return response.data;
+  },
+};
+
 export const api = {
   auth: authAPI,
   food: foodAPI,
@@ -1426,6 +1628,14 @@ export const api = {
   fitness: fitnessAPI,
   billing: billingAPI,
   weight: weightAPI,
+  habits: habitsAPI,
+  todos: todosAPI,
+  tips: tipsAPI,
+  streaks: streaksAPI,
+  postureCare: postureCareAPI,
+  recipe: recipeAPI,
+  liveWorkout: liveWorkoutAPI,
 };
 
 export default apiClient;
+

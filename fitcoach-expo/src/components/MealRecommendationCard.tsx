@@ -52,18 +52,18 @@ interface MealRecommendationCardProps {
 
 // Light Theme Colors
 const theme = {
-  bg: '#FAFAFA',
+  bg: '#f6f7f7',
   surface: '#FFFFFF',
-  primary: '#26d9bb', // Teal from mockup
-  textMain: '#1e293b',
-  textSub: '#64748b',
+  primary: '#2c696d',
+  textMain: '#111418',
+  textSub: '#637588',
   border: '#e2e8f0',
-  greenBg: '#E6F4F1', // Light green for header
+  greenBg: '#eef3f3',
   macros: {
-    calories: '#EF4444',
-    protein: '#10B981',
-    carbs: '#F59E0B',
-    fat: '#6366F1'
+    calories: '#111418',
+    protein: '#2c696d',
+    carbs: '#2c696d',
+    fat: '#2c696d'
   }
 };
 
@@ -158,7 +158,7 @@ const MealRecommendationCard: React.FC<MealRecommendationCardProps> = ({
         )}
 
         {isLogged && (
-          <TouchableOpacity style={styles.completedBtn} disabled>
+          <TouchableOpacity style={styles.completedBtn} onPress={onViewDetails}>
             <Text style={styles.completedBtnText}>Logged</Text>
             <MaterialCommunityIcons name="check" size={16} color={theme.primary} />
           </TouchableOpacity>
@@ -168,7 +168,7 @@ const MealRecommendationCard: React.FC<MealRecommendationCardProps> = ({
         {!isLogged && (
           <TouchableOpacity style={styles.swapBtn} onPress={onSwap} disabled={isSwapping}>
             {isSwapping ? <ActivityIndicator size="small" color={theme.textSub} /> : (
-              <Text style={styles.swapText}>Swap Recommendation</Text>
+              <Text style={styles.swapText}>Swap</Text>
             )}
           </TouchableOpacity>
         )}

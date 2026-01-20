@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../config/database.js';
 import { verifyFirebaseToken } from '../config/firebase.js';
 import FLE from '../services/fitnessLogicEngine.js';
+import { createDefaultHabits } from './habits.controller.js';
 
 // Generate tokens
 const generateAccessToken = (userId) => {
@@ -41,7 +42,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-      let profile_completed = false;
+    let profile_completed = false;
 
     // Check if user already exists
     const existingUser = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
@@ -64,7 +65,7 @@ export const register = async (req, res) => {
       }
 
       // Activity level multiplier
-     
+
 
       const activityMultipliers = {
         sedentary: 1.2,
@@ -77,7 +78,7 @@ export const register = async (req, res) => {
         active: 1.725,
         veryActive: 1.9
       };
-      
+
       const multiplier = activityMultipliers[activityLevel] || 1.55; // Default to moderate if not found
       let tdee = bmr * multiplier;
 
@@ -93,8 +94,8 @@ export const register = async (req, res) => {
     }
 
     if (!calorieTarget || isNaN(calorieTarget) || calorieTarget < 500) {
-       console.warn(`[AUTH] Invalid calorie target calculated: ${calorieTarget}. Defaulting to 2000.`);
-       calorieTarget = 2000;
+      console.warn(`[AUTH] Invalid calorie target calculated: ${calorieTarget}. Defaulting to 2000.`);
+      calorieTarget = 2000;
     }
 
     // Create user
@@ -119,6 +120,9 @@ export const register = async (req, res) => {
     );
 
     const user = result.rows[0];
+
+    // Initialize default habits
+    await createDefaultHabits(user.id);
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id);
@@ -240,7 +244,7 @@ export const firebaseLogin = async (req, res) => {
 
     // 2. Strict Email Verification
     if (!email_verified) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Email not verified',
         code: 'EMAIL_NOT_VERIFIED',
         message: 'Please verify your email address before logging in.'
@@ -257,7 +261,7 @@ export const firebaseLogin = async (req, res) => {
     if (result.rows.length === 0) {
       // Create new user (Federated identity)
       const dummyHash = await bcrypt.hash(Math.random().toString(36), 10);
-      
+
       const newUser = await query(
         `INSERT INTO users (
             email, password_hash, name, weight, height, age, gender,
@@ -279,7 +283,7 @@ export const firebaseLogin = async (req, res) => {
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    
+
     await query(
       'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
       [user.id, refreshToken, expiresAt]
@@ -287,7 +291,7 @@ export const firebaseLogin = async (req, res) => {
 
     // 5. Register Push Token if provided
     if (pushToken) {
-       await query(`
+      await query(`
          INSERT INTO push_tokens (user_id, token, platform)
          VALUES ($1, $2, 'unknown')
          ON CONFLICT (user_id, token) DO UPDATE SET last_used_at = NOW()
@@ -374,11 +378,11 @@ export const logout = async (req, res) => {
     }
 
     if (pushToken) {
-       // Remove push token for this device
-       await query(
-         'DELETE FROM push_tokens WHERE user_id = $1 AND token = $2',
-         [req.user.id, pushToken]
-       );
+      // Remove push token for this device
+      await query(
+        'DELETE FROM push_tokens WHERE user_id = $1 AND token = $2',
+        [req.user.id, pushToken]
+      );
     }
 
     res.json({ message: 'Logged out successfully' });
@@ -465,7 +469,7 @@ export const updateProfile = async (req, res) => {
 
     // Handle push token separately (Device level)
     if (push_token) {
-       await query(`
+      await query(`
          INSERT INTO push_tokens (user_id, token, platform)
          VALUES ($1, $2, 'unknown')
          ON CONFLICT (user_id, token) DO UPDATE SET last_used_at = NOW()
@@ -538,7 +542,7 @@ export const updateProfile = async (req, res) => {
     // Recalculate FLE targets if body metrics or goal changed
     const fleFields = ['weight', 'height', 'age', 'gender', 'activityLevel', 'goal'];
     const shouldRecalculate = fleFields.some(field => req.body[field] !== undefined);
-    
+
     if (shouldRecalculate) {
       try {
         await FLE.updateUserTargetsInDB(userId);

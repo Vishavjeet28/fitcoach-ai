@@ -18,19 +18,19 @@ import MealRecommendationCard from '../components/MealRecommendationCard';
 
 // Light Theme Constants
 const theme = {
-  bg: '#FAFAFA',
+  bg: '#f6f7f7',
   surface: '#FFFFFF',
-  primary: '#26d9bb',
-  textMain: '#1e293b', // Slate 800
-  textSub: '#64748b',   // Slate 500
+  primary: '#2c696d',
+  textMain: '#111418',
+  textSub: '#637588',
   border: '#e2e8f0',
   progress: {
-    calories: '#3b82f6', // Blue
-    protein: '#10b981',  // Green
-    carbs: '#d97706',    // Amber/Wheat (darker for text visibility)
-    carbsBar: '#fcd34d', // Wheat bar
-    fat: '#f59e0b',      // Orange
-    fatBar: '#fde68a'    // Light orange bar
+    calories: '#3b82f6',
+    protein: '#10b981',
+    carbs: '#d97706',
+    carbsBar: '#fcd34d',
+    fat: '#f59e0b',
+    fatBar: '#fde68a'
   }
 };
 
@@ -49,13 +49,81 @@ interface WorkoutExercise {
   completed?: boolean;
 }
 
-const TodayScreen = () => {
+const GUEST_MEALS = [
+  {
+    id: 901,
+    name: 'Quinoa Salad with Chickpeas',
+    calories: 450,
+    protein_g: 15,
+    carbs_g: 65,
+    fat_g: 12,
+    foodItems: [{ name: 'Quinoa Salad with Chickpeas', calories: 450, protein_g: 15, carbs_g: 65, fat_g: 12 }],
+    steps: ['Cook quinoa', 'Mix with chickpeas', 'Add lemon dressing'],
+    prepTime: 10,
+    cookTime: 15
+  },
+  {
+    id: 902,
+    name: 'Grilled Salmon with Asparagus',
+    calories: 550,
+    protein_g: 35,
+    carbs_g: 10,
+    fat_g: 25,
+    foodItems: [{ name: 'Grilled Salmon with Asparagus', calories: 550, protein_g: 35, carbs_g: 10, fat_g: 25 }],
+    steps: ['Grill salmon', 'Steam asparagus', 'Serve with lemon'],
+    prepTime: 5,
+    cookTime: 15
+  },
+  {
+    id: 903,
+    name: 'Lentil Soup',
+    calories: 400,
+    protein_g: 18,
+    carbs_g: 50,
+    fat_g: 8,
+    foodItems: [{ name: 'Lentil Soup', calories: 400, protein_g: 18, carbs_g: 50, fat_g: 8 }],
+    steps: ['Sauté veggies', 'Add lentils and broth', 'Simmer 30 mins'],
+    prepTime: 10,
+    cookTime: 30
+  },
+  {
+    id: 904,
+    name: 'Turkey & Avocado Wrap',
+    calories: 500,
+    protein_g: 28,
+    carbs_g: 45,
+    fat_g: 20,
+    foodItems: [{ name: 'Turkey & Avocado Wrap', calories: 500, protein_g: 28, carbs_g: 45, fat_g: 20 }],
+    steps: ['Spread avocado on tortilla', 'Lay turkey slices', 'Roll and cut'],
+    prepTime: 10,
+    cookTime: 0
+  },
+  {
+    id: 905,
+    name: 'Oatmeal with Almonds',
+    calories: 350,
+    protein_g: 12,
+    carbs_g: 55,
+    fat_g: 10,
+    foodItems: [{ name: 'Oatmeal with Almonds', calories: 350, protein_g: 12, carbs_g: 55, fat_g: 10 }],
+    steps: ['Boil water/milk', 'Add oats and cook', 'Top with almonds'],
+    prepTime: 5,
+    cookTime: 5
+  }
+];
+
+const TodayScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
-  const [swappingMeal, setSwappingMeal] = useState<string | null>(null);
+  const [swappingMeal, setSwappingMeal] = useState<'breakfast' | 'lunch' | 'dinner' | null>(null);
+  const [nutritionHistory, setNutritionHistory] = useState<any[]>([]);
+
+  // Guest Mode State
+  const [guestMealIndices, setGuestMealIndices] = useState({ breakfast: 0, lunch: 1, dinner: 2 });
 
   // Meal data state
   const [mealData, setMealData] = useState<any>(null);
@@ -73,6 +141,10 @@ const TodayScreen = () => {
     completed?: boolean;
   }>({});
   const [fullWorkoutData, setFullWorkoutData] = useState<any>(null);
+
+  const [generatingWorkout, setGeneratingWorkout] = useState(false);
+
+
 
   const handleGenerateDailyPlan = async () => {
     try {
@@ -95,6 +167,31 @@ const TodayScreen = () => {
   const handleSwapMeal = async (mealType: 'breakfast' | 'lunch' | 'dinner') => {
     try {
       setSwappingMeal(mealType);
+
+      if (!user || user.email === 'guest@fitcoach.ai') {
+        // Guest mode simulation - cycle through mock meals
+        setTimeout(async () => {
+          setGuestMealIndices(prev => {
+            const nextIdx = (prev[mealType] + 1) % GUEST_MEALS.length;
+            const newIndices = { ...prev, [mealType]: nextIdx };
+
+            // Update local mealData immediately for guest
+            setMealData((prevData: any) => ({
+              ...prevData,
+              [mealType]: {
+                ...prevData?.[mealType],
+                recommendation: GUEST_MEALS[nextIdx]
+              }
+            }));
+
+            return newIndices;
+          });
+          setSwappingMeal(null);
+          Alert.alert('Guest Mode', 'Meal swapped with a new suggestion (Preview)');
+        }, 800);
+        return;
+      }
+
       const today = new Date().toISOString().split('T')[0];
       const response = await mealAPI.swapMeal(mealType, today);
       if (response.success) {
@@ -106,16 +203,39 @@ const TodayScreen = () => {
       console.error('Swap meal error:', error);
       Alert.alert('Error', 'Failed to swap meal. Please try again.');
     } finally {
-      setSwappingMeal(null);
+      if (user && user.email !== 'guest@fitcoach.ai') {
+        setSwappingMeal(null);
+      }
     }
   };
 
-  const [generatingWorkout, setGeneratingWorkout] = useState(false);
+
 
   const handleGenerateWorkout = async () => {
     try {
-      if (!user?.id) return;
       setGeneratingWorkout(true);
+
+      if (!user || user.email === 'guest@fitcoach.ai') {
+        // Guest mode simulation
+        setTimeout(() => {
+          setWorkout({
+            scheduled: {
+              name: "Full Body Foundation",
+              exercises: [
+                { name: "Pushups", sets: 3, reps: 12 },
+                { name: "Bodyweight Squats", sets: 3, reps: 15 },
+                { name: "Plank", sets: 3, reps: 45 },
+              ]
+            },
+            completed: false
+          });
+          Alert.alert('Guest Mode', 'Local workout plan generated for preview.');
+          setGeneratingWorkout(false);
+        }, 1200);
+        return;
+      }
+
+      if (!user?.id) return;
       const response = await workoutAPI.recommendProgram(user.id);
 
       // The API returns response.data which usually contains the generated program or success indicator
@@ -129,12 +249,14 @@ const TodayScreen = () => {
       console.error('Generate workout error', e);
       Alert.alert('Error', 'Failed to generate workout.');
     } finally {
-      setGeneratingWorkout(false);
+      if (user && user.email !== 'guest@fitcoach.ai') {
+        setGeneratingWorkout(false);
+      }
     }
   };
 
   const handleLogMeal = (mealType: 'breakfast' | 'lunch' | 'dinner') => {
-    navigation.navigate('AddFood', { mealType });
+    navigation.navigate('FoodLog', { mealType });
   };
 
   useFocusEffect(
@@ -149,14 +271,56 @@ const TodayScreen = () => {
       const today = new Date().toISOString().split('T')[0];
 
       if (user?.email === 'guest@fitcoach.ai' || !user) {
-        // Guest Logic (Simplified for brevity, can duplicate from original if strictly needed, but assumign auth User mainly now)
+        // Guest Logic - Show mock recommendations
         setNutritionGoals({
           calories: { current: 1450, target: 2000 },
           protein: { current: 110, target: 150 },
           carbs: { current: 160, target: 200 },
           fat: { current: 50, target: 65 },
         });
-        setMealData({ /* Mock Data if needed, relying on empty check mainly */ });
+
+        // Initialize guest meal data if not already set or refreshing
+        setMealData({
+          breakfast: {
+            recommendation: GUEST_MEALS[guestMealIndices.breakfast],
+            targets: { calories: 500, protein_g: 35, carbs_g: 50, fat_g: 15 },
+            logged: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } }
+          },
+          lunch: {
+            recommendation: GUEST_MEALS[guestMealIndices.lunch],
+            targets: { calories: 700, protein_g: 50, carbs_g: 70, fat_g: 25 },
+            logged: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } }
+          },
+          dinner: {
+            recommendation: GUEST_MEALS[guestMealIndices.dinner],
+            targets: { calories: 800, protein_g: 65, carbs_g: 80, fat_g: 25 },
+            logged: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } }
+          }
+        });
+
+        if (!workout.scheduled) {
+          setWorkout({
+            scheduled: {
+              name: "Initial Assessment Workout",
+              exercises: [
+                { name: "Squats", sets: 3, reps: 10 },
+                { name: "Push ups", sets: 3, reps: 8 }
+              ]
+            }
+          });
+        }
+
+        // Mock history for guest
+        setNutritionHistory([
+          { day: 'Mon', protein: 120, carbs: 180, fat: 50 },
+          { day: 'Tue', protein: 140, carbs: 160, fat: 55 },
+          { day: 'Wed', protein: 130, carbs: 200, fat: 60 },
+          { day: 'Thu', protein: 150, carbs: 150, fat: 45 },
+          { day: 'Fri', protein: 110, carbs: 220, fat: 70 },
+          { day: 'Sat', protein: 100, carbs: 250, fat: 80 },
+          { day: 'Sun', protein: 130, carbs: 140, fat: 50 },
+        ]);
+
         setLoading(false);
         setRefreshing(false);
         return;
@@ -168,7 +332,7 @@ const TodayScreen = () => {
         if (mealsResponse.success) {
           setMealData(mealsResponse.meals);
 
-          // Calculate Totals logic (Same as original)
+          // Calculate Totals logic
           const totalTarget =
             (mealsResponse.meals.breakfast.targets?.calories || 0) +
             (mealsResponse.meals.lunch.targets?.calories || 0) +
@@ -179,9 +343,6 @@ const TodayScreen = () => {
             mealsResponse.meals.lunch.logged.totals.calories +
             mealsResponse.meals.dinner.logged.totals.calories;
 
-          // ... (Assume simplified aggregation for other macros or relying on analyticsAPI fallback)
-
-          // Actually, let's rely on the explicit calculation effectively
           const agg = (key: 'protein' | 'carbs' | 'fat', targetKey: 'protein_g' | 'carbs_g' | 'fat_g') => {
             const c = mealsResponse.meals.breakfast.logged.totals[key] +
               mealsResponse.meals.lunch.logged.totals[key] +
@@ -189,16 +350,49 @@ const TodayScreen = () => {
             const t = (mealsResponse.meals.breakfast.targets?.[targetKey] || 0) +
               (mealsResponse.meals.lunch.targets?.[targetKey] || 0) +
               (mealsResponse.meals.dinner.targets?.[targetKey] || 0);
-            return { current: c, target: t };
+            return { current: Math.round(c), target: Math.round(t) };
           };
 
           setNutritionGoals({
-            calories: { current: totalCurrent, target: totalTarget || 2000 },
+            calories: { current: Math.round(totalCurrent), target: Math.round(totalTarget) || 2000 },
             protein: agg('protein', 'protein_g'),
             carbs: agg('carbs', 'carbs_g'),
             fat: agg('fat', 'fat_g'),
           });
         }
+
+        // Fetch History for Graph
+        try {
+          const analyticsRes = await analyticsAPI.getWeeklyTrends();
+          if (analyticsRes && analyticsRes.dailyData) {
+            const history = analyticsRes.dailyData.slice(-7).map((d: any) => ({
+              day: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
+              protein: d.protein || 0,
+              carbs: d.carbs || 0,
+              fat: d.fat || 0
+            }));
+            setNutritionHistory(history);
+          } else {
+            // Fallback mock if no history
+            setNutritionHistory([
+              { day: 'Mon', protein: 120, carbs: 180, fat: 50 },
+              { day: 'Tue', protein: 140, carbs: 160, fat: 55 },
+              { day: 'Wed', protein: 130, carbs: 200, fat: 60 },
+              { day: 'Thu', protein: 150, carbs: 150, fat: 45 },
+              { day: 'Fri', protein: 110, carbs: 220, fat: 70 },
+              { day: 'Sat', protein: 100, carbs: 250, fat: 80 },
+              { day: 'Sun', protein: 130, carbs: 140, fat: 50 },
+            ]);
+          }
+        } catch (e) {
+          console.log('Stats fetch error', e);
+          // Fallback
+          setNutritionHistory([
+            { day: 'Mon', protein: 120, carbs: 180, fat: 50, isFallback: true },
+            { day: 'Sun', protein: 130, carbs: 140, fat: 50, isFallback: true },
+          ]);
+        }
+
       } catch (e) { console.log('Meal fetch error', e); }
 
       // Fetch Workout
@@ -209,11 +403,13 @@ const TodayScreen = () => {
         if (exercises) {
           setFullWorkoutData(data);
           setWorkout({
-            scheduled: { name: data.program_name || 'Today\'s Workout', exercises },
+            scheduled: { name: data.program_name || data.name || 'Today\'s Workout', exercises },
             completed: data.completed
           });
         }
       } catch (e) { console.log('Workout fetch error', e); }
+
+
 
     } catch (error) {
       console.error(error);
@@ -311,6 +507,39 @@ const TodayScreen = () => {
           </View>
         </View>
 
+        {/* Daily Tools Shortcuts */}
+        <View style={{ marginBottom: 16 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Habits')}>
+              <View style={[styles.toolIcon, { backgroundColor: '#E0F2FE' }]}>
+                <MaterialCommunityIcons name="check-all" size={24} color="#0EA5E9" />
+              </View>
+              <Text style={styles.toolText}>Habits</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Todos')}>
+              <View style={[styles.toolIcon, { backgroundColor: '#F0FDF4' }]}>
+                <MaterialCommunityIcons name="format-list-checks" size={24} color="#22C55E" />
+              </View>
+              <Text style={styles.toolText}>To-Dos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Planner')}>
+              <View style={[styles.toolIcon, { backgroundColor: '#FEF3C7' }]}>
+                <MaterialCommunityIcons name="calendar-month" size={24} color="#F59E0B" />
+              </View>
+              <Text style={styles.toolText}>Planner</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('ActiveWorkout', { workout: workout.scheduled })}>
+              <View style={[styles.toolIcon, { backgroundColor: '#FEE2E2' }]}>
+                <MaterialCommunityIcons name="play-circle" size={24} color="#EF4444" />
+              </View>
+              <Text style={styles.toolText}>Live</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
         {/* Generate Button if empty */}
         {(!mealData || (mealData && (!mealData.breakfast || !mealData.breakfast.recommendation))) && (
           <TouchableOpacity style={styles.generateBtn} onPress={handleGenerateDailyPlan} disabled={generatingPlan}>
@@ -323,6 +552,8 @@ const TodayScreen = () => {
           </TouchableOpacity>
         )}
 
+
+
         {/* Meal Cards */}
         {mealData && (
           <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
@@ -334,7 +565,7 @@ const TodayScreen = () => {
               logged={mealData.breakfast?.logged}
               onSwap={() => handleSwapMeal('breakfast')}
               onLogMeal={() => handleLogMeal('breakfast')}
-              onViewDetails={() => navigation.navigate('MealDetail', { meal: mealData.breakfast?.recommendation, mealType: 'breakfast', date: new Date().toISOString().split('T')[0] })}
+              onViewDetails={() => navigation.navigate('MealDetail', { mealData: mealData.breakfast, mealType: 'breakfast', date: new Date().toISOString().split('T')[0] })}
               isSwapping={swappingMeal === 'breakfast'}
               isGenerating={generatingPlan}
             />
@@ -347,7 +578,7 @@ const TodayScreen = () => {
               logged={mealData.lunch?.logged}
               onSwap={() => handleSwapMeal('lunch')}
               onLogMeal={() => handleLogMeal('lunch')}
-              onViewDetails={() => navigation.navigate('MealDetail', { meal: mealData.lunch?.recommendation, mealType: 'lunch', date: new Date().toISOString().split('T')[0] })}
+              onViewDetails={() => navigation.navigate('MealDetail', { mealData: mealData.lunch, mealType: 'lunch', date: new Date().toISOString().split('T')[0] })}
               isSwapping={swappingMeal === 'lunch'}
               isGenerating={generatingPlan}
             />
@@ -360,7 +591,7 @@ const TodayScreen = () => {
               logged={mealData.dinner?.logged}
               onSwap={() => handleSwapMeal('dinner')}
               onLogMeal={() => handleLogMeal('dinner')}
-              onViewDetails={() => navigation.navigate('MealDetail', { meal: mealData.dinner?.recommendation, mealType: 'dinner', date: new Date().toISOString().split('T')[0] })}
+              onViewDetails={() => navigation.navigate('MealDetail', { mealData: mealData.dinner, mealType: 'dinner', date: new Date().toISOString().split('T')[0] })}
               isSwapping={swappingMeal === 'dinner'}
               isGenerating={generatingPlan}
             />
@@ -384,10 +615,25 @@ const TodayScreen = () => {
               </View>
               <TouchableOpacity
                 style={styles.viewWorkoutBtn}
-                onPress={() => navigation.navigate('WorkoutPlanner', { dailyWorkout: fullWorkoutData })}
+                onPress={() => navigation.navigate('WorkoutSession', { dailyWorkout: fullWorkoutData || workout })}
               >
                 <Text style={styles.viewWorkoutText}>View Routine</Text>
                 <MaterialCommunityIcons name="arrow-right" size={16} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.viewWorkoutBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border, marginTop: 10 }]}
+                onPress={handleGenerateWorkout}
+                disabled={generatingWorkout}
+              >
+                {generatingWorkout ? (
+                  <ActivityIndicator color={theme.primary} size="small" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="sync" size={16} color={theme.textSub} />
+                    <Text style={[styles.viewWorkoutText, { color: theme.textSub }]}>Re-Plan Workout</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           ) : (
@@ -469,7 +715,12 @@ const styles = StyleSheet.create({
   },
   viewWorkoutText: {
     color: 'white', fontWeight: '600'
-  }
+  },
+  toolBtn: { alignItems: 'center', width: 70 },
+  toolIcon: { width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  toolText: { fontSize: 12, fontWeight: '600', color: theme.textMain },
+
+
 });
 
 export default TodayScreen;

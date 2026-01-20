@@ -1,8 +1,7 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, SafeAreaView, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AIService from '../services/aiService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { workoutAPI } from '../services/api';
@@ -23,21 +22,61 @@ const colors = {
 export default function WorkoutPlannerScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { user, token } = useAuth();
 
+  // State
   const [loading, setLoading] = useState(false);
-  const [generatedPlan, setGeneratedPlan] = useState<string | null>(null); // For legacy text mode
-  const [selectedExercise, setSelectedExercise] = useState<any>(null); // For modal
+  const [dailyWorkoutState, setDailyWorkoutState] = useState<any>(route.params?.dailyWorkout || null);
+  const [programDataState, setProgramDataState] = useState<any>(route.params?.program || null);
+  const [generatedPlan, setGeneratedPlan] = useState<string | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<any>(null);
 
-  // Navigation Params
-  const programData = route.params?.program; // Full program from AI/Generation (Generation Flow)
-  const dailyWorkout = route.params?.dailyWorkout; // Single day from Dashboard (Consumption Flow)
+  // Auto-fetch if no params passed (e.g. from Dashboard "Today's Workout" tap)
+  useEffect(() => {
+    if (!dailyWorkoutState && !programDataState) {
+      fetchDailyWorkout();
+    }
+  }, []);
 
-  // Decide what to render
-  const isDailyView = !!dailyWorkout;
-  const isProgramView = !!programData;
-  const isGeneratorView = !isDailyView && !isProgramView;
+  const fetchDailyWorkout = async () => {
+    setLoading(true);
 
-  const { user } = useAuth(); // Get user from context
+    // Guest Mode check
+    if (!token) {
+      loadMockWorkout();
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await workoutAPI.getTodayWorkout();
+      // Inspect response structure loosely
+      if (res && res.split) {
+        setDailyWorkoutState(res);
+      } else if (res && res.program) {
+        // Did we get a program but no specific daily split? 
+        // Might be rest day or program overview
+        setProgramDataState({ program: res.program, reasoning: 'Your current plan' });
+      }
+    } catch (e) {
+      console.log('Error fetching daily workout:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMockWorkout = () => {
+    setDailyWorkoutState({
+      split: "Full Body Foundation",
+      duration_minutes: 45,
+      exercises: [
+        { name: "Push-ups", sets: 3, reps: 10, rest: "60s" },
+        { name: "Bodyweight Squats", sets: 3, reps: 15, rest: "60s" },
+        { name: "Plank", sets: 3, reps: "30s", rest: "45s" },
+        { name: "Lunges", sets: 3, reps: 12, rest: "60s" },
+      ]
+    });
+  };
 
   const handleGenerate = async () => {
     if (!user?.id) {
@@ -47,7 +86,6 @@ export default function WorkoutPlannerScreen() {
 
     setLoading(true);
     try {
-      // Use the correct backend API that saves to DB
       const result = await workoutAPI.recommendProgram(user.id);
 
       if (result && result.program) {
@@ -58,8 +96,7 @@ export default function WorkoutPlannerScreen() {
             {
               text: 'View Plan',
               onPress: () => {
-                // Navigate reload or set local state to show program
-                // For now, we update the local route params or state to show it
+                setProgramDataState(result); // Update local state
                 navigation.setParams({ program: result });
               }
             }
@@ -76,27 +113,31 @@ export default function WorkoutPlannerScreen() {
     }
   };
 
-  const renderExerciseCard = (ex: any, index: number) => (
-    <TouchableOpacity
-      key={index}
-      style={styles.exerciseCard}
-      onPress={() => setSelectedExercise(ex)}
-    >
-      <View style={styles.exHeader}>
-        <Text style={styles.exName}>{ex.name}</Text>
-        <MaterialCommunityIcons name="information-outline" size={20} color={colors.primary} />
-      </View>
-      <View style={styles.exMetaRow}>
-        <MaterialCommunityIcons name="weight-lifter" size={16} color={colors.textTertiary} />
-        <Text style={styles.exMetaText}>
-          {Array.isArray(ex.sets) ? ex.sets[0] : ex.sets} sets × {Array.isArray(ex.reps) ? ex.reps[0] : ex.reps} reps
-        </Text>
-      </View>
-      {ex.met && (
-        <Text style={styles.exSubMeta}>Intensity (MET): {ex.met}</Text>
-      )}
-    </TouchableOpacity>
-  );
+  // Rendering Helper
+  const renderExerciseCard = (ex: any, index: number) => {
+    if (!ex) return null;
+    return (
+      <TouchableOpacity
+        key={index}
+        style={styles.exerciseCard}
+        onPress={() => setSelectedExercise(ex)}
+      >
+        <View style={styles.exHeader}>
+          <Text style={styles.exName}>{ex.name || 'Unknown Exercise'}</Text>
+          <MaterialCommunityIcons name="information-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={styles.exMetaRow}>
+          <MaterialCommunityIcons name="weight-lifter" size={16} color={colors.textTertiary} />
+          <Text style={styles.exMetaText}>
+            {Array.isArray(ex.sets) ? ex.sets[0] : ex.sets} sets × {Array.isArray(ex.reps) ? ex.reps[0] : ex.reps} reps
+          </Text>
+        </View>
+        {ex.met && (
+          <Text style={styles.exSubMeta}>Intensity (MET): {ex.met}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   const renderSection = (title: string, exercises: any[], icon: string) => {
     if (!exercises || exercises.length === 0) return null;
@@ -112,27 +153,29 @@ export default function WorkoutPlannerScreen() {
   };
 
   const renderDailyContent = () => {
-    const { split, warmup, cooldown, program_name, day } = dailyWorkout;
+    if (!dailyWorkoutState || !dailyWorkoutState.split) return null;
+
+    const { split, warmup, cooldown, program_name, day } = dailyWorkoutState;
     return (
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerCard}>
           <Text style={styles.programTitle}>{program_name || 'Daily Workout'}</Text>
-          <Text style={styles.programSubtitle}>Day {day}</Text>
-          <Text style={styles.splitName}>{split.name}</Text>
+          <Text style={styles.programSubtitle}>Day {day || '-'}</Text>
+          <Text style={styles.splitName}>{split?.name || 'Session'}</Text>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
-              <Text style={styles.statVal}>{dailyWorkout.estimated_calories || '-'}</Text>
+              <Text style={styles.statVal}>{dailyWorkoutState.estimated_calories || '-'}</Text>
               <Text style={styles.statLabel}>Kcal</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statVal}>{split.total_duration_min || '-'}</Text>
+              <Text style={styles.statVal}>{split?.total_duration_min || '-'}</Text>
               <Text style={styles.statLabel}>Mins</Text>
             </View>
           </View>
         </View>
 
         {renderSection('Warmup', warmup, 'run-fast')}
-        {renderSection('Main Workout', split.exercises, 'dumbbell')}
+        {renderSection('Main Workout', split?.exercises, 'dumbbell')}
         {renderSection('Cooldown', cooldown, 'meditation')}
 
         <TouchableOpacity
@@ -141,16 +184,15 @@ export default function WorkoutPlannerScreen() {
           onPress={async () => {
             setLoading(true);
             try {
-              // Construct session log data
               const sessionData = {
-                program_id: dailyWorkout.program_id,
-                split_name: dailyWorkout.split.name,
-                duration_minutes: dailyWorkout.split.total_duration_min || 45,
+                program_id: dailyWorkoutState.program_id,
+                split_name: split?.name || 'Workout',
+                duration_minutes: split?.total_duration_min || 45,
                 exercises_completed: [
-                  ...(dailyWorkout.warmup || []),
-                  ...(dailyWorkout.split.exercises || []),
-                  ...(dailyWorkout.cooldown || [])
-                ].map(ex => ({
+                  ...(warmup || []),
+                  ...(split?.exercises || []),
+                  ...(cooldown || [])
+                ].map((ex: any) => ({
                   ...ex,
                   duration_min: ex.estimated_duration_min || 5
                 })),
@@ -177,17 +219,18 @@ export default function WorkoutPlannerScreen() {
   };
 
   const renderProgramContent = () => {
-    const { program, reasoning } = programData;
-    // Backend recommendProgram returns { program: { splits: [], warmup: [], cooldown: [] }, reasoning }
-    // Or structure might vary slightly, treating securely.
-    const p = program || {};
+    // Safety check
+    if (!programDataState || !programDataState.program) return null;
+
+    const { program, reasoning } = programDataState;
+    const p = program;
 
     return (
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerCard}>
           <Text style={styles.programTitle}>{p.name || 'Recommended Plan'}</Text>
           <Text style={styles.programSubtitle}>{p.frequency ? `${p.frequency} Days / Week` : 'Custom Plan'}</Text>
-          <Text style={styles.reasoning}>{reasoning}</Text>
+          {reasoning && <Text style={styles.reasoning}>{reasoning}</Text>}
         </View>
 
         <Text style={styles.sectionHeaderTitle}>Routine Structure</Text>
@@ -195,7 +238,7 @@ export default function WorkoutPlannerScreen() {
         {(p.splits || []).map((split: any, i: number) => (
           <View key={i} style={styles.dayCard}>
             <Text style={styles.dayTitle}>Day {split.day}: {split.name}</Text>
-            {split.exercises.map((ex: any, idx: number) => (
+            {(split.exercises || []).map((ex: any, idx: number) => (
               <Text key={idx} style={styles.dayEx}>• {ex.name}</Text>
             ))}
           </View>
@@ -213,6 +256,11 @@ export default function WorkoutPlannerScreen() {
     );
   };
 
+  // Determine view mode
+  const isDailyView = !!dailyWorkoutState && !!dailyWorkoutState.split;
+  const isProgramView = !!programDataState && !!programDataState.program;
+  const isGeneratorView = !isDailyView && !isProgramView && !loading;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -225,8 +273,16 @@ export default function WorkoutPlannerScreen() {
         <View style={{ width: 28 }} />
       </View>
 
+      {loading && (
+        <View style={[styles.scrollContent, { alignItems: 'center', marginTop: 40 }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 12, color: colors.textSecondary }}>Loading workout details...</Text>
+        </View>
+      )}
+
       {isDailyView && renderDailyContent()}
       {isProgramView && renderProgramContent()}
+
       {isGeneratorView && (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={[styles.card, { alignItems: 'center' }]}>
@@ -252,7 +308,7 @@ export default function WorkoutPlannerScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedExercise?.name}</Text>
+              <Text style={styles.modalTitle}>{selectedExercise?.name || 'Exercise Details'}</Text>
               <TouchableOpacity onPress={() => setSelectedExercise(null)}>
                 <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>

@@ -27,7 +27,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    
+
     // Allow all localhost, Expo, and local network IPs
     const allowedOrigins = [
       /^http:\/\/localhost:\d+$/,
@@ -36,7 +36,7 @@ app.use(cors({
       /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
       /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+$/
     ];
-    
+
     const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
     if (isAllowed) {
       callback(null, true);
@@ -121,6 +121,13 @@ import weightRoutes from './routes/weight.routes.js';
 import mealRoutes from './routes/meals.routes.js';
 import workoutRoutes from './routes/workout.routes.js'; // NEW: Workout recommendations
 import mealRecommendationRoutes from './routes/mealRecommendation.routes.js'; // NEW: Meal recommendations
+import habitsRoutes from './routes/habits.routes.js'; // NEW: Habits tracking
+import todosRoutes from './routes/todos.routes.js'; // NEW: Daily todos
+import tipsRoutes from './routes/tips.routes.js'; // NEW: Daily tips
+import streaksRoutes from './routes/streaks.routes.js';
+import recipeRoutes from './routes/recipe.routes.js';
+import postureCareRoutes from './routes/postureCare.routes.js'; // NEW: Posture & Pain Care
+import liveWorkoutRoutes from './routes/liveWorkout.routes.js'; // NEW: Live Workout Execution
 
 // Apply routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -136,6 +143,13 @@ app.use('/api/weight', weightRoutes);
 app.use('/api/meals', mealRoutes);
 app.use('/api/workout', workoutRoutes); // NEW: Workout system
 app.use('/api/meal-recommendations', mealRecommendationRoutes); // NEW: AI meal recommendations
+app.use('/api/habits', habitsRoutes); // NEW: Habits tracking
+app.use('/api/todos', todosRoutes); // NEW: Daily todos
+app.use('/api/tips', tipsRoutes); // NEW: Daily tips
+app.use('/api/streaks', streaksRoutes);
+app.use('/api/recipes', recipeRoutes);
+app.use('/api/posture-care', postureCareRoutes); // NEW: Posture & Pain Care
+app.use('/api/live-workout', liveWorkoutRoutes); // NEW: Live Workout Execution (Isolated)
 
 // 404 handler
 app.use((req, res) => {
@@ -149,10 +163,10 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(`[Error] RequestID: ${req.requestId} | Error:`, err);
-  
+
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal server error';
-  
+
   // NEVER log stack trace in production response (security)
   res.status(statusCode).json({
     error: message,

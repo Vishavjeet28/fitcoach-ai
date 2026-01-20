@@ -239,6 +239,72 @@ const WaterLogScreen = () => {
           </View>
         </View>
 
+        {/* Custom Amount */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CUSTOM AMOUNT</Text>
+          <View style={[styles.customCard, { flexDirection: 'column', paddingVertical: 24, gap: 16 }]}>
+            <Text style={styles.customValue}>{customAmount}ml</Text>
+
+            {/* Amount Presets */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 8 }}>
+              {[100, 200, 300, 500, 750, 1000].map((amount) => (
+                <TouchableOpacity
+                  key={amount}
+                  onPress={() => setCustomAmount(amount)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    backgroundColor: customAmount === amount ? colors.info : colors.border + '40',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    color: customAmount === amount ? '#fff' : colors.textSecondary
+                  }}>
+                    {amount >= 1000 ? `${amount / 1000}L` : amount}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Fine Tune Buttons */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+              <TouchableOpacity
+                onPress={() => setCustomAmount(prev => Math.max(50, prev - 50))}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: colors.error + '20',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialCommunityIcons name="minus" size={24} color={colors.error} />
+              </TouchableOpacity>
+
+              <Text style={{ fontSize: 14, color: colors.textTertiary }}>Fine tune</Text>
+
+              <TouchableOpacity
+                onPress={() => setCustomAmount(prev => Math.min(2000, prev + 50))}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: colors.success + '20',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialCommunityIcons name="plus" size={24} color={colors.success} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* Hydration Tips */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>HYDRATION TIPS</Text>
@@ -256,31 +322,6 @@ const WaterLogScreen = () => {
                 <Text style={styles.tipText}>{tip.text}</Text>
               </View>
             ))}
-          </View>
-        </View>
-
-        {/* Custom Amount */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>CUSTOM AMOUNT</Text>
-          <View style={styles.customCard}>
-            <TouchableOpacity
-              style={styles.customButton}
-              onPress={handleRemoveWater}
-            >
-              <MaterialCommunityIcons name="minus" size={24} color={colors.error} />
-            </TouchableOpacity>
-
-            <View style={styles.customDisplay}>
-              <Text style={styles.customValue}>{customAmount}ml</Text>
-              <Text style={styles.customLabel}>Tap +/- to adjust</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.customButton}
-              onPress={handleAddCustom}
-            >
-              <MaterialCommunityIcons name="plus" size={24} color={colors.success} />
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>

@@ -1,15 +1,16 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 
-// Extracted from GoogleService-Info.plist
+// Firebase Web App Configuration (required for Expo/React Native JS SDK)
 const firebaseConfig = {
-  apiKey: "AIzaSyDwKRd13luGPyTvfByRCYs1CFk2FXpAyV8",
+  apiKey: "AIzaSyB6926fq13CKyg66p6r3gKse2cmna4qYJY",
   authDomain: "fitcoach-ai-87ed4.firebaseapp.com",
   projectId: "fitcoach-ai-87ed4",
   storageBucket: "fitcoach-ai-87ed4.firebasestorage.app",
   messagingSenderId: "504054843092",
-  appId: "1:504054843092:ios:d223f30a35c959030bdd41"
+  appId: "1:504054843092:web:05e40795c0bc5c590bdd41",
+  measurementId: "G-2P3E96MV3R"
 };
 
 let app: FirebaseApp;
@@ -17,32 +18,16 @@ let auth: Auth;
 
 // Helper to sanitize keys for SecureStore (which doesn't allow ':')
 const sanitizeKey = (key: string) => {
-    return key.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  return key.replace(/[^a-zA-Z0-9.\-_]/g, '_');
 };
 
-// Adapter for Expo SecureStore to work with Firebase Persistence
-const ExpoPersistence = {
-  getItem: (key: string) => {
-    return SecureStore.getItemAsync(sanitizeKey(key));
-  },
-  setItem: (key: string, value: string) => {
-    return SecureStore.setItemAsync(sanitizeKey(key), value);
-  },
-  removeItem: (key: string) => {
-    return SecureStore.deleteItemAsync(sanitizeKey(key));
-  }
-};
+// Initialize Firebase
+app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-  // Initialize Auth with Expo SecureStore persistence
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(ExpoPersistence)
-  });
-} else {
-  app = getApp();
-  auth = getAuth(app);
-}
+// Initialize Auth with auto-persistence
+// Note: In modern Firebase for Expo, getAuth() often handles persistence automatically
+// if @react-native-async-storage/async-storage is installed.
+auth = getAuth(app);
 
 // Analytics Mocks (for Expo Go)
 export const logScreenView = async (screenName: string) => {

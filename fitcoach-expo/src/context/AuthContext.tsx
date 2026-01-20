@@ -4,10 +4,10 @@ import * as SecureStore from 'expo-secure-store';
 import SafeAsyncStorage from '../utils/SafeAsyncStorage';
 import { registerSessionExpiredCallback, cancelAllRequests, authAPI, userAPI, UserProfile } from '../services/api';
 import { API_BASE_URL } from '../config/api.config';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  sendEmailVerification, 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
   updateProfile,
   onAuthStateChanged,
@@ -28,11 +28,11 @@ const USER_KEY = 'fitcoach_user';
  * - profile_setup_required: Email verified, profile_completed = false
  * - authenticated: Email verified, profile_completed = true
  */
-export type AuthStatus = 
-  | 'loading' 
-  | 'unauthenticated' 
-  | 'email_verification_pending' 
-  | 'profile_setup_required' 
+export type AuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'email_verification_pending'
+  | 'profile_setup_required'
   | 'authenticated';
 
 type User = UserProfile;
@@ -117,17 +117,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    */
   const loadStoredAuth = async () => {
     console.log('🔐 [AUTH] Starting auth restoration (state: loading)...');
-    
+
     try {
       const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
       const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
 
       if (storedToken && storedRefreshToken) {
         console.log('✅ [AUTH] Token found in storage, validating...');
-        
+
         // Set token immediately to use in fetch
         setToken(storedToken);
-        
+
         try {
           // Validate token
           const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
@@ -145,14 +145,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           const refreshData = await refreshResponse.json();
           const newAccessToken = refreshData.accessToken;
-          
+
           await SecureStore.setItemAsync(TOKEN_KEY, newAccessToken);
           setToken(newAccessToken);
 
           // NOW fetch authoritative user state from /auth/me
           console.log('🔄 [AUTH] Fetching authoritative user state from /auth/me...');
           const userData = await fetchAuthMeFromBackend();
-          
+
           if (!userData) {
             console.warn('⚠️ [AUTH] Could not fetch user from /auth/me');
             setAuthStatus('unauthenticated');
@@ -214,10 +214,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<boolean> => {
     setAuthStatus('loading');
     setError(null);
-    
+
     try {
       let idToken: string;
-      
+
       // DEV MODE BYPASS: Skip Firebase authentication in development
       if (__DEV__ && (email.includes('@test.') || email.includes('@dev.') || email === 'test@test.com')) {
         console.log('⚠️ [AUTH DEV] Using mock token bypass for:', email);
@@ -227,9 +227,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         idToken = await userCredential.user.getIdToken(true);
       }
-      
+
       const data = await authAPI.firebaseLogin(idToken);
-      
+
       const { accessToken, refreshToken, user: userData } = data;
 
       await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
@@ -241,7 +241,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // CRITICAL: Use backend values to decide status (profile_completed)
       decideFinalAuthStatus(userData);
-      
+
       console.log('✅ [AUTH] Login successful');
       return true;
 
@@ -254,7 +254,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         message = err.message;
       }
-      
+
       setError(message);
       setAuthStatus('unauthenticated');
       console.error('❌ [AUTH] Login error:', err);
@@ -265,7 +265,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signup = async (email: string, password: string, name: string): Promise<boolean> => {
     setAuthStatus('loading');
     setError(null);
-    
+
     try {
       // DEV MODE BYPASS: Skip Firebase for test emails
       if (__DEV__ && (email.includes('@test.') || email.includes('@dev.') || email === 'test@test.com')) {
@@ -273,26 +273,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const idToken = `mock-firebase-token:${email}`;
         const data = await authAPI.firebaseLogin(idToken);
         const { accessToken, refreshToken, user: userData } = data;
-        
+
         await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
         await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
         await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
-        
+
         setToken(accessToken);
         setUser(userData);
         decideFinalAuthStatus(userData);
         return true;
       }
-      
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
+
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
       }
 
       // Send verification email
       await sendEmailVerification(userCredential.user);
-      
+
       console.log('✅ [AUTH] Signup successful, verification email sent');
       setAuthStatus('email_verification_pending');
       return true;
@@ -306,7 +306,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         message = err.message;
       }
-      
+
       setError(message);
       setAuthStatus('unauthenticated');
       return false;
@@ -317,12 +317,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async (): Promise<void> => {
     console.log('🔓 [AUTH] Logging out...');
-    
+
     cancelAllRequests();
-    
+
     try {
       const pushToken = await SafeAsyncStorage.getItem('push_token');
-      
+
       await authAPI.logout(pushToken || undefined);
 
       try {
@@ -340,9 +340,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const forceLogout = async (): Promise<void> => {
     console.log('⚠️ [AUTH] Session expired, forcing logout...');
-    
+
     cancelAllRequests();
-    
+
     try {
       await signOut(auth);
     } catch (e) {
@@ -359,9 +359,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       id: 0,
       email: 'guest@fitcoach.ai',
       name: 'Guest User',
-      emailVerified: true,
       profile_completed: true,
-      profileCompletedAt: new Date().toISOString(),
       age: undefined,
       gender: undefined,
       height: undefined,
@@ -385,7 +383,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       console.log('🔄 [AUTH] Refreshing user from /auth/me...');
       const userData = await fetchAuthMeFromBackend();
-      
+
       if (userData) {
         console.log('📊 [AUTH] User data from /auth/me:', {
           id: userData.id,
@@ -394,7 +392,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         setUser(userData);
         await SafeAsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
-        
+
         // Update auth status if profile_completed changed
         decideFinalAuthStatus(userData);
       }

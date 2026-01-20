@@ -7,7 +7,7 @@ export const getFoodLogs = async (req, res) => {
     const { date, startDate, endDate } = req.query;
 
     let result;
-    
+
     if (date) {
       // Get logs for a specific date
       result = await query(
@@ -72,7 +72,7 @@ export const logFood = async (req, res) => {
       notes
     } = req.body;
 
-    const nameToUse = customFoodName || foodName;  
+    const nameToUse = customFoodName || foodName;
 
     // Validation (redundant if using validator middleware, but safety net)
     if (!foodId && !nameToUse) {
@@ -132,13 +132,13 @@ export const logFood = async (req, res) => {
         ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, NOW(), $9)
         RETURNING *`,
         [
-          userId, 
-          nameToUse, 
-          calories, 
-          protein, 
-          carbs, 
-          fat, 
-          mealType, 
+          userId,
+          nameToUse,
+          calories,
+          protein,
+          carbs,
+          fat,
+          mealType,
           mealDate || new Date().toISOString().split('T')[0],
           notes
         ]
@@ -185,14 +185,14 @@ export const updateFoodLog = async (req, res) => {
     if (servings !== undefined) {
       updates.push(`servings = $${paramCount++}`);
       values.push(servings);
-      
+
       // Recalculate nutrition if servings changed and it's from database
       if (existingLog.food_id) {
         const foodResult = await query(
           'SELECT calories, protein, carbs, fat FROM foods WHERE id = $1',
           [existingLog.food_id]
         );
-        
+
         if (foodResult.rows.length > 0) {
           const food = foodResult.rows[0];
           updates.push(`calories = $${paramCount++}, protein = $${paramCount++}, carbs = $${paramCount++}, fat = $${paramCount++}`);
@@ -411,12 +411,18 @@ async function updateDailySummary(userId, date) {
     const user = userResult.rows[0];
     const calorieTarget = user?.tdee_cached || user?.calorie_target || 2000;
 
+    // Calculate macro targets (Default 30/40/30 split)
+    const proteinTarget = Math.round((calorieTarget * 0.3) / 4);
+    const carbTarget = Math.round((calorieTarget * 0.4) / 4);
+    const fatTarget = Math.round((calorieTarget * 0.3) / 9);
+
     // Upsert daily summary
     await query(
       `INSERT INTO daily_summaries (
         user_id, summary_date, total_calories, total_protein, 
-        total_carbs, total_fat, calorie_target
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        total_carbs, total_fat, calorie_target,
+        protein_target_g, carb_target_g, fat_target_g
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (user_id, summary_date)
       DO UPDATE SET
         total_calories = $3,
@@ -424,6 +430,9 @@ async function updateDailySummary(userId, date) {
         total_carbs = $5,
         total_fat = $6,
         calorie_target = $7,
+        protein_target_g = $8,
+        carb_target_g = $9,
+        fat_target_g = $10,
         updated_at = NOW()`,
       [
         userId,
@@ -432,7 +441,10 @@ async function updateDailySummary(userId, date) {
         totals.total_protein,
         totals.total_carbs,
         totals.total_fat,
-        calorieTarget
+        calorieTarget,
+        proteinTarget,
+        carbTarget,
+        fatTarget
       ]
     );
   } catch (error) {

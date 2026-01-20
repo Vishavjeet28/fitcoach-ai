@@ -21,20 +21,18 @@ import Constants from 'expo-constants';
 
 const getApiBaseUrl = (): string => {
   // Priority 1: Environment variable (production builds)
-  const envUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || 
-                 process.env.EXPO_PUBLIC_API_URL;
-  
+  const envUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_API_URL;
+
   if (envUrl) {
     return envUrl;
   }
 
-  // Priority 2: Development fallback (localhost)
+  // Priority 2: Development fallback (your local network IP)
   if (__DEV__) {
-    // IMPORTANT: Update this to your development backend URL
-    // For iOS simulator: http://localhost:5001/api
-    // For Android emulator: http://10.0.2.2:5001/api
-    // For physical device: http://YOUR_COMPUTER_IP:5001/api
-    return 'http://localhost:5001/api';
+    // IMPORTANT: This should match your computer's current IP
+    // Find your IP with: ifconfig | grep "inet " | grep -v 127.0.0.1
+    return 'http://192.168.68.183:5001/api';
   }
 
   // Priority 3: Production must have env variable set
@@ -52,22 +50,22 @@ const getApiBaseUrl = (): string => {
 function validateApiUrl(url: string): void {
   try {
     const parsed = new URL(url);
-    
+
     // Must be http or https
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       throw new Error(`Invalid protocol: ${parsed.protocol}. Must be http: or https:`);
     }
-    
+
     // Must have a hostname
     if (!parsed.hostname) {
       throw new Error('Missing hostname');
     }
-    
+
     // Warn about common mistakes
     if (url.includes('your-production-api.com')) {
       throw new Error('Placeholder URL detected. Please set a real API URL.');
     }
-    
+
     // Warn about ngrok in production (CRITICAL)
     if (url.includes('ngrok') && !__DEV__) {
       throw new Error(
@@ -77,7 +75,7 @@ function validateApiUrl(url: string): void {
         'Example: https://api.fitcoach.com/api'
       );
     }
-    
+
   } catch (error: any) {
     throw new Error(
       `❌ Invalid API_BASE_URL: "${url}"\n` +
@@ -91,11 +89,11 @@ function validateApiUrl(url: string): void {
 export const API_BASE_URL = (() => {
   const url = getApiBaseUrl();
   validateApiUrl(url);
-  
+
   if (__DEV__) {
     console.log('🌐 [CONFIG] API Base URL:', url);
   }
-  
+
   return url;
 })();
 

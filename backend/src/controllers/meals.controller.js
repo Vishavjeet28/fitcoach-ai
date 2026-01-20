@@ -186,10 +186,16 @@ export const generateDailyPlan = async (req, res) => {
             throw new Error(plan.error || 'Failed to generate meal plan');
         }
 
+        // Map results
+        const mappedMeals = {};
+        Object.entries(plan.data.meals).forEach(([type, meal]) => {
+            mappedMeals[type] = mapRecommendationToFrontend(meal, true);
+        });
+
         res.json({
             success: true,
             date: targetDate,
-            meals: plan.data.meals
+            meals: mappedMeals
         });
 
     } catch (error) {
@@ -229,7 +235,7 @@ export const swapMeal = async (req, res) => {
             success: true,
             date: targetDate,
             mealType,
-            meal: newMeal
+            meal: mapRecommendationToFrontend(newMeal, true)
         });
 
     } catch (error) {
@@ -324,7 +330,7 @@ export const getDailyMealsWithRecommendations = async (req, res) => {
 
         // 3. Get logged food
         const loggedRes = await query(
-            `SELECT fl.meal_type, 
+            `SELECT fl.id, fl.meal_type, 
                     COALESCE(f.name, fl.custom_food_name) as food_name,
                     fl.servings as portion_size, 
                     COALESCE(f.serving_unit, 'serving') as unit,
@@ -352,22 +358,7 @@ export const getDailyMealsWithRecommendations = async (req, res) => {
 
         // Group recommendations by meal type
         recommendationsRes.rows.forEach(rec => {
-            recommendations[rec.meal_type] = {
-                id: rec.id,
-                foodItems: rec.recommended_food_items,
-                details: rec.recommended_details,
-                calories: rec.target_calories, // Display target calories as the recommendation calories?
-                // Or sum of recommended items?
-                // User said: "AI never decides calories... Calories come ONLY from fitnessLogicEngine"
-                // So we should probably show the target.
-                protein_g: rec.target_protein_g,
-                carbs_g: rec.target_carbs_g,
-                fat_g: rec.target_fat_g,
-                generationMethod: rec.generation_method,
-                aiReasoning: rec.reasoning,
-                createdAt: rec.created_at,
-                swapCount: rec.swap_count
-            };
+            recommendations[rec.meal_type] = mapRecommendationToFrontend(rec);
         });
 
         // Group logged food by meal type
@@ -379,6 +370,7 @@ export const getDailyMealsWithRecommendations = async (req, res) => {
                 };
             }
             logged[log.meal_type].items.push({
+                id: log.id,
                 foodName: log.food_name,
                 portionSize: log.portion_size,
                 unit: log.unit,
@@ -388,10 +380,10 @@ export const getDailyMealsWithRecommendations = async (req, res) => {
                 fat: log.fat,
                 loggedAt: log.logged_at
             });
-            logged[log.meal_type].totals.calories += log.calories;
-            logged[log.meal_type].totals.protein += log.protein;
-            logged[log.meal_type].totals.carbs += log.carbs;
-            logged[log.meal_type].totals.fat += log.fat;
+            logged[log.meal_type].totals.calories += Number(log.calories || 0);
+            logged[log.meal_type].totals.protein += Number(log.protein || 0);
+            logged[log.meal_type].totals.carbs += Number(log.carbs || 0);
+            logged[log.meal_type].totals.fat += Number(log.fat || 0);
         });
 
         // Group compliance by meal type
@@ -460,3 +452,41 @@ export const getDailyMealsWithRecommendations = async (req, res) => {
         });
     }
 };
+
+/**
+ * Helper to map DB recommendation or engine output to frontend format
+ */
+function mapRecommendationToFrontend(rec, isEngineOutput = false) {
+    if (!rec) return null;
+
+    const foodItems = isEngineOutput ? rec.food_items : rec.recommended_food_items;
+    const details = isEngineOutput ? rec.details : rec.recommended_details;
+    const items = foodItems || [];
+    const dets = details || {};
+
+    return {
+        id: rec.id,
+        name: items[0]?.name || 'Recommended Meal',
+        description: rec.reasoning || rec.ai_reasoning || dets.description || '',
+        foodItems: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            calories: item.calories,
+            protein_g: item.protein || item.protein_g,
+            carbs_g: item.carbs || item.carbs_g,
+            fat_g: item.fat || item.fat_g
+        })),
+        calories: isEngineOutput ? rec.calories : rec.target_calories,
+        protein_g: isEngineOutput ? rec.protein_g : rec.target_protein_g,
+        carbs_g: isEngineOutput ? rec.carbs_g : rec.target_carbs_g,
+        fat_g: isEngineOutput ? rec.fat_g : rec.target_fat_g,
+        prepTime: parseInt(dets.prep_time) || 10,
+        cookTime: parseInt(dets.cook_time) || 15,
+        steps: dets.recipe_instructions || [],
+        tips: dets.tips || [],
+        swapCount: rec.swap_count
+    };
+}
+
+

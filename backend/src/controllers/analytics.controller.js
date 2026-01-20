@@ -7,11 +7,19 @@ export const getDailySummary = async (req, res) => {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
 
+    // If fetching for today, ensure fresh aggregation from food logs
+    if (targetDate === new Date().toISOString().split('T')[0] || date) {
+      // Use the food controller helper (imported?) or just trust the DB trigger/update?
+      // ...
+    }
+
     const result = await query(
       `SELECT * FROM daily_summaries
        WHERE user_id = $1 AND summary_date = $2`,
       [userId, targetDate]
     );
+
+    console.log(`[Analytics] Daily Summary Query: user=${userId}, date=${targetDate}, found=${result.rows.length}`);
 
     if (result.rows.length === 0) {
       // Return empty summary if no data
@@ -44,6 +52,9 @@ export const getDailySummary = async (req, res) => {
         totalExerciseMinutes: parseInt(summary.total_exercise_minutes || 0),
         totalWaterMl: parseInt(summary.total_water_ml || 0),
         calorieTarget: parseInt(summary.calorie_target || 2000),
+        proteinTarget: parseInt(summary.protein_target_g || Math.round((parseInt(summary.calorie_target || 2000) * 0.3) / 4)),
+        carbTarget: parseInt(summary.carb_target_g || Math.round((parseInt(summary.calorie_target || 2000) * 0.4) / 4)),
+        fatTarget: parseInt(summary.fat_target_g || Math.round((parseInt(summary.calorie_target || 2000) * 0.3) / 9)),
         waterTargetMl: parseInt(summary.water_target_ml || 3000),
         netCalories: parseInt(summary.total_calories || 0) - parseInt(summary.total_exercise_calories || 0)
       }
@@ -59,7 +70,7 @@ export const getWeeklyTrends = async (req, res) => {
   try {
     const userId = req.user.id;
     const { startDate } = req.query;
-    
+
     let start;
     if (startDate) {
       start = new Date(startDate);
@@ -67,7 +78,7 @@ export const getWeeklyTrends = async (req, res) => {
       start = new Date();
       start.setDate(start.getDate() - 6); // Last 7 days
     }
-    
+
     const startDateStr = start.toISOString().split('T')[0];
 
     const result = await query(
@@ -93,10 +104,10 @@ export const getWeeklyTrends = async (req, res) => {
     // Calculate averages
     const data = result.rows;
     const count = data.length;
-    
+
     let avgCalories = 0, avgProtein = 0, avgCarbs = 0, avgFat = 0;
     let avgExerciseCalories = 0, avgExerciseMinutes = 0, avgWater = 0;
-    
+
     if (count > 0) {
       data.forEach(row => {
         avgCalories += parseInt(row.total_calories || 0);
@@ -107,7 +118,7 @@ export const getWeeklyTrends = async (req, res) => {
         avgExerciseMinutes += parseInt(row.total_exercise_minutes || 0);
         avgWater += parseInt(row.total_water_ml || 0);
       });
-      
+
       avgCalories = Math.round(avgCalories / count);
       avgProtein = (avgProtein / count).toFixed(1);
       avgCarbs = (avgCarbs / count).toFixed(1);
@@ -154,10 +165,10 @@ export const getMonthlyStats = async (req, res) => {
   try {
     const userId = req.user.id;
     const { year, month } = req.query;
-    
+
     const targetYear = year || new Date().getFullYear();
     const targetMonth = month || new Date().getMonth() + 1;
-    
+
     const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
     const endDate = new Date(targetYear, targetMonth, 0).toISOString().split('T')[0];
 
@@ -181,18 +192,18 @@ export const getMonthlyStats = async (req, res) => {
 
     const data = result.rows;
     const daysLogged = data.length;
-    
+
     // Calculate totals and averages
     let totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
     let totalExerciseCalories = 0, totalExerciseMinutes = 0, totalWater = 0;
     let daysMetCalorieGoal = 0, daysMetWaterGoal = 0, daysExercised = 0;
-    
+
     data.forEach(row => {
       const calories = parseInt(row.total_calories || 0);
       const exerciseMinutes = parseInt(row.total_exercise_minutes || 0);
       const water = parseInt(row.total_water_ml || 0);
       const calorieTarget = parseInt(row.calorie_target || 2000);
-      
+
       totalCalories += calories;
       totalProtein += parseFloat(row.total_protein || 0);
       totalCarbs += parseFloat(row.total_carbs || 0);
@@ -200,7 +211,7 @@ export const getMonthlyStats = async (req, res) => {
       totalExerciseCalories += parseInt(row.total_exercise_calories || 0);
       totalExerciseMinutes += exerciseMinutes;
       totalWater += water;
-      
+
       if (calories <= calorieTarget * 1.1 && calories >= calorieTarget * 0.9) {
         daysMetCalorieGoal++;
       }
@@ -265,12 +276,12 @@ export const getProgressOverview = async (req, res) => {
       'SELECT weight, calorie_target, goal, created_at FROM users WHERE id = $1',
       [userId]
     );
-    
+
     const user = userResult.rows[0];
-    
+
     // Get weight history (we'll need to add a weight_logs table for this, for now use current weight)
     const currentWeight = user.weight;
-    
+
     // Get total days logged
     const daysResult = await query(
       `SELECT COUNT(DISTINCT summary_date) as days_logged
@@ -278,9 +289,9 @@ export const getProgressOverview = async (req, res) => {
        WHERE user_id = $1`,
       [userId]
     );
-    
+
     const daysLogged = parseInt(daysResult.rows[0].days_logged);
-    
+
     // Get total stats
     const statsResult = await query(
       `SELECT 
@@ -291,9 +302,9 @@ export const getProgressOverview = async (req, res) => {
        WHERE user_id = $1`,
       [userId]
     );
-    
+
     const stats = statsResult.rows[0];
-    
+
     // Get recent streak
     const streakResult = await query(
       `SELECT summary_date
@@ -303,20 +314,20 @@ export const getProgressOverview = async (req, res) => {
        ORDER BY summary_date DESC`,
       [userId]
     );
-    
+
     let currentStreak = 0;
     const dates = streakResult.rows.map(r => new Date(r.summary_date));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     for (let i = 0; i < dates.length; i++) {
       const expectedDate = new Date(today);
       expectedDate.setDate(today.getDate() - i);
       expectedDate.setHours(0, 0, 0, 0);
-      
+
       const actualDate = new Date(dates[i]);
       actualDate.setHours(0, 0, 0, 0);
-      
+
       if (actualDate.getTime() === expectedDate.getTime()) {
         currentStreak++;
       } else {
@@ -352,38 +363,38 @@ export const getProgressOverview = async (req, res) => {
 import ALE from '../services/analyticsLogicEngine.js'; // Ensure this path is correct
 
 export const getAnalyticsData = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { period } = req.query; // '1w', '1m', '3m', '6m', '1y'
+  try {
+    const userId = req.user.id;
+    const { period } = req.query; // '1w', '1m', '3m', '6m', '1y'
 
-        // Check if backfill is needed
-        const checkRes = await query(`SELECT id FROM analytics_daily_snapshots WHERE user_id = $1 LIMIT 1`, [userId]);
-        if (checkRes.rows.length === 0) {
-            console.log('Backfilling analytics for user', userId);
-            await ALE.backfillHistory(userId);
-        }
+    // Check if backfill is needed
+    const checkRes = await query(`SELECT id FROM analytics_daily_snapshots WHERE user_id = $1 LIMIT 1`, [userId]);
+    if (checkRes.rows.length === 0) {
+      console.log('Backfilling analytics for user', userId);
+      await ALE.backfillHistory(userId);
+    }
 
-        let sql = '';
-        let params = [userId];
+    let sql = '';
+    let params = [userId];
 
-        // Determine Date Range
-        const now = new Date();
-        let startDate = new Date();
-        
-        // Date Logic
-        if (period === '1w') startDate.setDate(now.getDate() - 7);
-        else if (period === '1m') startDate.setMonth(now.getMonth() - 1);
-        else if (period === '3m') startDate.setMonth(now.getMonth() - 3);
-        else if (period === '6m') startDate.setMonth(now.getMonth() - 6);
-        else if (period === '1y') startDate.setFullYear(now.getFullYear() - 1);
-        else startDate.setDate(now.getDate() - 30); // Default
+    // Determine Date Range
+    const now = new Date();
+    let startDate = new Date();
 
-        const startDateStr = startDate.toISOString().split('T')[0];
+    // Date Logic
+    if (period === '1w') startDate.setDate(now.getDate() - 7);
+    else if (period === '1m') startDate.setMonth(now.getMonth() - 1);
+    else if (period === '3m') startDate.setMonth(now.getMonth() - 3);
+    else if (period === '6m') startDate.setMonth(now.getMonth() - 6);
+    else if (period === '1y') startDate.setFullYear(now.getFullYear() - 1);
+    else startDate.setDate(now.getDate() - 30); // Default
 
-        // Query Logic based on Resolution
-        if (['1w', '1m'].includes(period)) {
-            // DAILY RESOLUTION
-            sql = `
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    // Query Logic based on Resolution
+    if (['1w', '1m'].includes(period)) {
+      // DAILY RESOLUTION
+      sql = `
                 SELECT 
                     date,
                     weight_kg as weight,
@@ -399,11 +410,11 @@ export const getAnalyticsData = async (req, res) => {
                 WHERE user_id = $1 AND date >= $2
                 ORDER BY date ASC
             `;
-            params.push(startDateStr);
-        } 
-        else if (['3m', '6m'].includes(period)) {
-            // WEEKLY RESOLUTION
-            sql = `
+      params.push(startDateStr);
+    }
+    else if (['3m', '6m'].includes(period)) {
+      // WEEKLY RESOLUTION
+      sql = `
                 SELECT 
                     DATE_TRUNC('week', date)::DATE as date,
                     ROUND(AVG(weight_kg), 2) as weight,
@@ -418,11 +429,11 @@ export const getAnalyticsData = async (req, res) => {
                 GROUP BY DATE_TRUNC('week', date)
                 ORDER BY date ASC
             `;
-            params.push(startDateStr);
-        }
-        else {
-            // MONTHLY RESOLUTION
-            sql = `
+      params.push(startDateStr);
+    }
+    else {
+      // MONTHLY RESOLUTION
+      sql = `
                 SELECT 
                     DATE_TRUNC('month', date)::DATE as date,
                     ROUND(AVG(weight_kg), 2) as weight,
@@ -437,30 +448,30 @@ export const getAnalyticsData = async (req, res) => {
                 GROUP BY DATE_TRUNC('month', date)
                 ORDER BY date ASC
             `;
-            params.push(startDateStr);
-        }
-
-        const result = await query(sql, params);
-        
-        // Transform for chart consumption if needed, or send raw
-        res.json({
-            period,
-            data: result.rows
-        });
-
-    } catch (error) {
-        console.error('Analytics Error:', error);
-        res.status(500).json({ error: 'Failed to fetch analytics' });
+      params.push(startDateStr);
     }
+
+    const result = await query(sql, params);
+
+    // Transform for chart consumption if needed, or send raw
+    res.json({
+      period,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('Analytics Error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
 };
 
 export const syncAnalytics = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        await ALE.backfillHistory(userId);
-        res.json({ message: 'Analytics synced' });
-    } catch (error) {
-        console.error('Sync error:', error);
-        res.status(500).json({ error: 'Sync failed' });
-    }
+  try {
+    const userId = req.user.id;
+    await ALE.backfillHistory(userId);
+    res.json({ message: 'Analytics synced' });
+  } catch (error) {
+    console.error('Sync error:', error);
+    res.status(500).json({ error: 'Sync failed' });
+  }
 };

@@ -30,3 +30,6 @@ fitcoach-expo/android/app/google-services.json
 # Expo
 .expo/
 web-build/
+fitcoach-ai-*-firebase-adminsdk-*.json
+backend/debug_*.js
+backend/check_*.js

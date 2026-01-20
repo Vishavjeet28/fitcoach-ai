@@ -20,7 +20,7 @@ export const authenticateToken = async (req, res, next) => {
       if (!userId) {
         return res.status(403).json({ error: 'Invalid token' });
       }
-      
+
       // Verify user still exists and is active
       const result = await query(
         'SELECT id, email, name, is_active FROM users WHERE id = $1',
@@ -79,7 +79,7 @@ export const optionalAuth = async (req, res, next) => {
         req.user = null;
         return next();
       }
-      
+
       const result = await query(
         'SELECT id, email, name, is_active FROM users WHERE id = $1',
         [userId]

@@ -13,10 +13,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import foodData from '../data/completeFoodDatabase.json';
 import { foodAPI, handleAPIError, CreateFoodLog } from '../services/api';
-import apiClient from '../services/api';
 import { Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
@@ -45,6 +44,8 @@ interface FoodItem {
 
 const FoodLogScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { initialMealType } = (route.params as any) || {};
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
@@ -52,7 +53,7 @@ const FoodLogScreen = () => {
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [mealType, setMealType] = useState('Breakfast');
+  const [mealType, setMealType] = useState(initialMealType || 'Breakfast');
   const [foodName, setFoodName] = useState('');
   const [servingSize, setServingSize] = useState('100');
   const [calories, setCalories] = useState('');
@@ -154,6 +155,7 @@ const FoodLogScreen = () => {
         servingSize: parseFloat(servingSize) || 100,
         servingUnit: 'g',
         mealType: mealType.toLowerCase() as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+        mealDate: todayDate,
         calories: Math.round(parseFloat(calories)),
         protein: parseFloat(protein) || 0,
         carbs: parseFloat(carbs) || 0,
@@ -162,7 +164,7 @@ const FoodLogScreen = () => {
 
       console.log('Sending food log payload:', JSON.stringify(payload, null, 2));
 
-      await apiClient.post('/food/logs', payload);
+      await foodAPI.createLog(payload);
 
       // Alert.alert('Success', 'Food logged successfully'); 
       navigation.goBack();
