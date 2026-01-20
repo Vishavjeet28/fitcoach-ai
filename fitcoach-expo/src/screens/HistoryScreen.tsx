@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  FlatList,
+  ListRenderItem,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -139,7 +141,9 @@ export default function HistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }; const filteredHistory = selectedTab === 'all'
+  };
+
+  const filteredHistory = selectedTab === 'all'
     ? history
     : history.filter(entry => entry.type === selectedTab);
 
@@ -179,6 +183,68 @@ export default function HistoryScreen() {
       });
     }
   };
+
+  const renderHistoryItem: ListRenderItem<HistoryEntry> = ({ item: entry }) => (
+    <View style={styles.historyItem}>
+      <View style={styles.historyItemHeader}>
+        <View style={styles.historyItemLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: `${getColorForType(entry.type)}20` }]}>
+            <MaterialCommunityIcons
+              name={getIconForType(entry.type) as any}
+              size={24}
+              color={getColorForType(entry.type)}
+            />
+          </View>
+          <View style={styles.historyItemInfo}>
+            <Text style={styles.historyItemTitle}>{entry.description}</Text>
+            <Text style={styles.historyItemDate}>{formatDate(entry.date)}</Text>
+          </View>
+        </View>
+        <View style={styles.historyItemRight}>
+          {entry.calories && (
+            <Text style={styles.historyItemCalories}>{entry.calories} kcal</Text>
+          )}
+          {entry.weight && (
+            <Text style={styles.historyItemWeight}>{entry.weight} kg</Text>
+          )}
+          {entry.exercise && (
+            <Text style={styles.historyItemExercise}>
+              {entry.exercise.duration}min • {entry.exercise.caloriesBurned} kcal
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {entry.macros && (
+        <View style={styles.macrosContainer}>
+          <View style={styles.macroItem}>
+            <Text style={styles.macroValue}>{entry.macros.protein}g</Text>
+            <Text style={styles.macroLabel}>Protein</Text>
+          </View>
+          <View style={styles.macroItem}>
+            <Text style={styles.macroValue}>{entry.macros.carbs}g</Text>
+            <Text style={styles.macroLabel}>Carbs</Text>
+          </View>
+          <View style={styles.macroItem}>
+            <Text style={styles.macroValue}>{entry.macros.fat}g</Text>
+            <Text style={styles.macroLabel}>Fat</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderEmptyComponent = () => (
+    <View style={styles.emptyContainer}>
+      <MaterialCommunityIcons name="history" size={64} color={colors.textTertiary} />
+      <Text style={styles.emptyTitle}>No history yet</Text>
+      <Text style={styles.emptySubtitle}>
+        {selectedTab === 'all'
+          ? 'Start tracking your activities!'
+          : `No ${selectedTab} entries found`}
+      </Text>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -240,69 +306,18 @@ export default function HistoryScreen() {
       </View>
 
       {/* History List */}
-      <ScrollView style={styles.historyContainer} showsVerticalScrollIndicator={false}>
-        {filteredHistory.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="history" size={64} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No history yet</Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedTab === 'all'
-                ? 'Start tracking your activities!'
-                : `No ${selectedTab} entries found`}
-            </Text>
-          </View>
-        ) : (
-          filteredHistory.map((entry) => (
-            <View key={entry.id} style={styles.historyItem}>
-              <View style={styles.historyItemHeader}>
-                <View style={styles.historyItemLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: `${getColorForType(entry.type)}20` }]}>
-                    <MaterialCommunityIcons
-                      name={getIconForType(entry.type) as any}
-                      size={24}
-                      color={getColorForType(entry.type)}
-                    />
-                  </View>
-                  <View style={styles.historyItemInfo}>
-                    <Text style={styles.historyItemTitle}>{entry.description}</Text>
-                    <Text style={styles.historyItemDate}>{formatDate(entry.date)}</Text>
-                  </View>
-                </View>
-                <View style={styles.historyItemRight}>
-                  {entry.calories && (
-                    <Text style={styles.historyItemCalories}>{entry.calories} kcal</Text>
-                  )}
-                  {entry.weight && (
-                    <Text style={styles.historyItemWeight}>{entry.weight} kg</Text>
-                  )}
-                  {entry.exercise && (
-                    <Text style={styles.historyItemExercise}>
-                      {entry.exercise.duration}min • {entry.exercise.caloriesBurned} kcal
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {entry.macros && (
-                <View style={styles.macrosContainer}>
-                  <View style={styles.macroItem}>
-                    <Text style={styles.macroValue}>{entry.macros.protein}g</Text>
-                    <Text style={styles.macroLabel}>Protein</Text>
-                  </View>
-                  <View style={styles.macroItem}>
-                    <Text style={styles.macroValue}>{entry.macros.carbs}g</Text>
-                    <Text style={styles.macroLabel}>Carbs</Text>
-                  </View>
-                  <View style={styles.macroItem}>
-                    <Text style={styles.macroValue}>{entry.macros.fat}g</Text>
-                    <Text style={styles.macroLabel}>Fat</Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          ))
-        )}
-      </ScrollView>
+      <FlatList
+        data={filteredHistory}
+        renderItem={renderHistoryItem}
+        keyExtractor={(item) => item.id.toString()}
+        style={styles.historyList}
+        contentContainerStyle={[
+          styles.historyListContent,
+          filteredHistory.length === 0 && { flex: 1 } // ensure empty component is centered if needed
+        ]}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={renderEmptyComponent}
+      />
     </View>
   );
 }
@@ -382,9 +397,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
-  historyContainer: {
+  historyList: {
     flex: 1,
+  },
+  historyListContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   emptyContainer: {
     alignItems: 'center',
