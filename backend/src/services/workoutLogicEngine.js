@@ -306,6 +306,23 @@ const WORKOUT_TEMPLATES = {
 };
 
 // ============================================================================
+// EXERCISE MET LOOKUP MAP (OPTIMIZATION)
+// ============================================================================
+const EXERCISE_MET_MAP = new Map();
+
+// Populate map from templates (Order matters: first occurrence wins)
+for (const template of Object.values(WORKOUT_TEMPLATES)) {
+  for (const split of template.splits) {
+    for (const exercise of split.exercises) {
+      const name = exercise.name.toLowerCase();
+      if (!EXERCISE_MET_MAP.has(name)) {
+        EXERCISE_MET_MAP.set(name, exercise.met);
+      }
+    }
+  }
+}
+
+// ============================================================================
 // MET-BASED CALORIE CALCULATION
 // ============================================================================
 
@@ -770,21 +787,20 @@ class WorkoutLogicEngine {
       // This ensures the workout appears in the existing History/Analytics views
       const dateStr = new Date().toISOString().split('T')[0];
 
-      for (const ex of exercises_completed) {
-        // Find exercise ID if possible
-        let exerciseId = ex.id;
+      if (exercises_completed.length > 0) {
+        const values = [];
+        const params = [];
+        let paramIndex = 1;
 
-        // Use default met if missing
-        const met = ex.met || 5.0;
-        const cals = calculateCaloriesBurned(met, weight_kg, ex.duration_min || 10);
+        for (const ex of exercises_completed) {
+          // Find exercise ID if possible
+          let exerciseId = ex.id;
 
-        await query(
-          `INSERT INTO exercise_logs (
-            user_id, exercise_id, custom_exercise_name, 
-            duration_minutes, sets, reps, weight_kg, 
-            calories_burned, workout_date
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [
+          // Use default met if missing
+          const met = ex.met || 5.0;
+          const cals = calculateCaloriesBurned(met, weight_kg, ex.duration_min || 10);
+
+          params.push(
             userId,
             exerciseId || null,
             ex.name,
@@ -794,7 +810,19 @@ class WorkoutLogicEngine {
             0, // Default weight (or could avg it)
             cals,
             dateStr
-          ]
+          );
+
+          values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+          paramIndex += 9;
+        }
+
+        await query(
+          `INSERT INTO exercise_logs (
+            user_id, exercise_id, custom_exercise_name,
+            duration_minutes, sets, reps, weight_kg,
+            calories_burned, workout_date
+          ) VALUES ${values.join(', ')}`,
+          params
         );
       }
       // --------------------------------------------------------------------------------
@@ -819,20 +847,8 @@ class WorkoutLogicEngine {
    * @returns {number} Calories burned
    */
   calculateExerciseCalories(exerciseName, weight_kg, duration_minutes) {
-    // Find exercise in templates
-    let met = 5.0; // Default moderate intensity
-
-    for (const template of Object.values(WORKOUT_TEMPLATES)) {
-      for (const split of template.splits) {
-        const exercise = split.exercises.find(ex =>
-          ex.name.toLowerCase() === exerciseName.toLowerCase()
-        );
-        if (exercise) {
-          met = exercise.met;
-          break;
-        }
-      }
-    }
+    // Find exercise in optimized lookup map
+    const met = EXERCISE_MET_MAP.get(exerciseName.toLowerCase()) || 5.0; // Default moderate intensity
 
     return calculateCaloriesBurned(met, weight_kg, duration_minutes);
   }
