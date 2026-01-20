@@ -43,45 +43,45 @@ class MealRecommendationEngine {
       // STEP 2: Get user preferences
       const userPrefs = await this.getUserPreferences(userId);
 
-      // STEP 3: Generate recommendations for each meal
-      const breakfast = await this.generateMealRecommendation(
-        userId,
-        date,
-        'breakfast',
-        {
-          calories: distribution.breakfast_calories,
-          protein_g: distribution.breakfast_protein_g,
-          carbs_g: distribution.breakfast_carbs_g,
-          fat_g: distribution.breakfast_fat_g,
-        },
-        userPrefs
-      );
-
-      const lunch = await this.generateMealRecommendation(
-        userId,
-        date,
-        'lunch',
-        {
-          calories: distribution.lunch_calories,
-          protein_g: distribution.lunch_protein_g,
-          carbs_g: distribution.lunch_carbs_g,
-          fat_g: distribution.lunch_fat_g,
-        },
-        userPrefs
-      );
-
-      const dinner = await this.generateMealRecommendation(
-        userId,
-        date,
-        'dinner',
-        {
-          calories: distribution.dinner_calories,
-          protein_g: distribution.dinner_protein_g,
-          carbs_g: distribution.dinner_carbs_g,
-          fat_g: distribution.dinner_fat_g,
-        },
-        userPrefs
-      );
+      // STEP 3: Generate recommendations for each meal concurrently
+      const [breakfast, lunch, dinner] = await Promise.all([
+        this.generateMealRecommendation(
+          userId,
+          date,
+          'breakfast',
+          {
+            calories: distribution.breakfast_calories,
+            protein_g: distribution.breakfast_protein_g,
+            carbs_g: distribution.breakfast_carbs_g,
+            fat_g: distribution.breakfast_fat_g,
+          },
+          userPrefs
+        ),
+        this.generateMealRecommendation(
+          userId,
+          date,
+          'lunch',
+          {
+            calories: distribution.lunch_calories,
+            protein_g: distribution.lunch_protein_g,
+            carbs_g: distribution.lunch_carbs_g,
+            fat_g: distribution.lunch_fat_g,
+          },
+          userPrefs
+        ),
+        this.generateMealRecommendation(
+          userId,
+          date,
+          'dinner',
+          {
+            calories: distribution.dinner_calories,
+            protein_g: distribution.dinner_protein_g,
+            carbs_g: distribution.dinner_carbs_g,
+            fat_g: distribution.dinner_fat_g,
+          },
+          userPrefs
+        )
+      ]);
 
       return {
         success: true,
