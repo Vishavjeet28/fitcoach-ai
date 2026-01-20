@@ -10,6 +10,7 @@
  */
 
 import billingService from '../services/billingService.js';
+import appleStoreService from '../services/appleStoreService.js';
 
 // ============================================================================
 // GET SUBSCRIPTION STATUS
@@ -233,12 +234,28 @@ export const checkFeature = async (req, res) => {
  */
 export const appleWebhook = async (req, res) => {
   try {
-    // TODO: Implement Apple receipt validation and subscription sync
-    // Reference: https://developer.apple.com/documentation/storekit/in-app_purchase/validating_receipts_with_the_app_store
+    console.log('[BILLING] Apple webhook received');
     
-    console.log('[BILLING] Apple webhook received:', JSON.stringify(req.body).slice(0, 500));
+    // Process notification using AppleStoreService
+    const notification = await appleStoreService.processNotification(req.body);
 
-    // Placeholder response
+    if (notification) {
+      console.log(`[BILLING] Syncing Apple subscription: ${notification.providerSubscriptionId} [${notification.status}]`);
+
+      // Sync status with our database
+      await billingService.syncSubscriptionFromProvider(
+        notification.providerSubscriptionId,
+        {
+          status: notification.status,
+          current_period_end: notification.current_period_end,
+          cancelled_at: notification.cancelled_at
+        }
+      );
+    } else {
+      console.warn('[BILLING] Failed to process Apple notification (no valid data)');
+    }
+
+    // Always return 200 to Apple to acknowledge receipt
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Apple webhook error:', error);
