@@ -452,15 +452,19 @@ Respond ONLY with JSON (no markdown):
     const categoryMap = { 'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner' };
     const category = categoryMap[mealType] || 'Lunch';
 
+    // Optimization: Push calorie filtering to Database
+    const minCalories = targets.calories * (1 - tolerance);
+    const maxCalories = targets.calories * (1 + tolerance);
+
     const result = await query(
-      `SELECT * FROM foods WHERE category = $1 AND is_verified = TRUE`,
-      [category]
+      `SELECT * FROM foods
+       WHERE category = $1
+       AND is_verified = TRUE
+       AND calories BETWEEN $2 AND $3`,
+      [category, minCalories, maxCalories]
     );
 
-    const candidates = result.rows.filter(r => {
-      const calDiff = Math.abs(r.calories - targets.calories) / targets.calories;
-      return calDiff <= tolerance;
-    });
+    const candidates = result.rows;
 
     if (candidates.length === 0) return null;
     return candidates[Math.floor(Math.random() * candidates.length)];
