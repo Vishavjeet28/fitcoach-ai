@@ -40,6 +40,8 @@ const colors = {
     const [mode, setMode] = useState<Mode>('login');
     const isLogin = mode === 'login';
 
+    const [localError, setLocalError] = useState<string | null>(null);
+
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -63,11 +65,12 @@ const colors = {
     }, [email, password, confirmPassword, name, isLogin]);
 
     const showError = (message: string) => {
-      Alert.alert('Authentication', message);
+      setLocalError(message);
     };
 
     const handleSubmit = async () => {
       clearError();
+      setLocalError(null);
 
       const trimmedEmail = email.trim();
       const trimmedName = name.trim();
@@ -111,6 +114,7 @@ const colors = {
 
     const toggleMode = () => {
       clearError();
+      setLocalError(null);
       setMode((m) => (m === 'login' ? 'register' : 'login'));
       setName('');
       setEmail('');
@@ -143,6 +147,7 @@ const colors = {
                   autoCapitalize="words"
                   style={styles.input}
                   editable={!busy}
+                  accessibilityLabel="Name"
                 />
               </View>
             ) : null}
@@ -158,6 +163,7 @@ const colors = {
                 keyboardType="email-address"
                 style={styles.input}
                 editable={!busy}
+                accessibilityLabel="Email"
               />
             </View>
 
@@ -173,11 +179,13 @@ const colors = {
                   secureTextEntry={!showPassword}
                   style={[styles.input, styles.passwordInput]}
                   editable={!busy}
+                  accessibilityLabel="Password"
                 />
                 <Pressable
                   onPress={() => setShowPassword((s) => !s)}
                   style={({ pressed }) => [styles.eyeButton, pressed && styles.pressed]}
                   accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   disabled={busy}
                 >
                   <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
@@ -198,11 +206,13 @@ const colors = {
                     secureTextEntry={!showConfirmPassword}
                     style={[styles.input, styles.passwordInput]}
                     editable={!busy}
+                    accessibilityLabel="Confirm password"
                   />
                   <Pressable
                     onPress={() => setShowConfirmPassword((s) => !s)}
                     style={({ pressed }) => [styles.eyeButton, pressed && styles.pressed]}
                     accessibilityRole="button"
+                    accessibilityLabel={showConfirmPassword ? 'Hide password' : 'Show password'}
                     disabled={busy}
                   >
                     <Text style={styles.eyeText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
@@ -211,7 +221,11 @@ const colors = {
               </View>
             ) : null}
 
-            {!!error ? <Text style={styles.inlineError}>{error}</Text> : null}
+            {!!(error || localError) ? (
+              <Text style={styles.inlineError} accessibilityLiveRegion="polite" accessibilityRole="alert">
+                {error || localError}
+              </Text>
+            ) : null}
 
             <Pressable
               onPress={handleSubmit}
