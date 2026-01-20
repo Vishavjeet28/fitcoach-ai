@@ -306,6 +306,23 @@ const WORKOUT_TEMPLATES = {
 };
 
 // ============================================================================
+// EXERCISE MET LOOKUP MAP (OPTIMIZATION)
+// ============================================================================
+const EXERCISE_MET_MAP = new Map();
+
+// Populate map from templates (Order matters: first occurrence wins)
+for (const template of Object.values(WORKOUT_TEMPLATES)) {
+  for (const split of template.splits) {
+    for (const exercise of split.exercises) {
+      const name = exercise.name.toLowerCase();
+      if (!EXERCISE_MET_MAP.has(name)) {
+        EXERCISE_MET_MAP.set(name, exercise.met);
+      }
+    }
+  }
+}
+
+// ============================================================================
 // MET-BASED CALORIE CALCULATION
 // ============================================================================
 
@@ -811,20 +828,8 @@ class WorkoutLogicEngine {
    * @returns {number} Calories burned
    */
   calculateExerciseCalories(exerciseName, weight_kg, duration_minutes) {
-    // Find exercise in templates
-    let met = 5.0; // Default moderate intensity
-
-    for (const template of Object.values(WORKOUT_TEMPLATES)) {
-      for (const split of template.splits) {
-        const exercise = split.exercises.find(ex =>
-          ex.name.toLowerCase() === exerciseName.toLowerCase()
-        );
-        if (exercise) {
-          met = exercise.met;
-          break;
-        }
-      }
-    }
+    // Find exercise in optimized lookup map
+    const met = EXERCISE_MET_MAP.get(exerciseName.toLowerCase()) || 5.0; // Default moderate intensity
 
     return calculateCaloriesBurned(met, weight_kg, duration_minutes);
   }
