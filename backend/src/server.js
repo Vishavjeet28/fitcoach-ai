@@ -1,3 +1,4 @@
+import './config/sentry.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,6 +8,7 @@ import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { pool, query } from './config/database.js';
 import { sanitizeInput } from './middleware/validation.middleware.js';
+import * as Sentry from '@sentry/node';
 
 // Load environment variables
 dotenv.config();
@@ -159,6 +161,9 @@ app.use((req, res) => {
     requestId: req.requestId
   });
 });
+
+// Sentry Error Handler must be before any other error middleware
+Sentry.setupExpressErrorHandler(app);
 
 // Global error handler
 app.use((err, req, res, next) => {
