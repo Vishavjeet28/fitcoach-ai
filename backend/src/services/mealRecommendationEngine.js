@@ -453,8 +453,8 @@ Respond ONLY with JSON (no markdown):
     const category = categoryMap[mealType] || 'Lunch';
 
     // Optimization: Push calorie filtering to Database
-    const minCalories = targets.calories * (1 - tolerance);
-    const maxCalories = targets.calories * (1 + tolerance);
+    const minCalories = Math.round(targets.calories * (1 - tolerance));
+    const maxCalories = Math.round(targets.calories * (1 + tolerance));
 
     const result = await query(
       `SELECT * FROM foods

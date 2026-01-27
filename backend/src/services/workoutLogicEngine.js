@@ -43,6 +43,7 @@ const WORKOUT_TEMPLATES = {
     frequency: 3,
     level: ['beginner', 'intermediate', 'advanced'],
     goal_compatibility: ['muscle_gain', 'recomposition', 'maintenance'],
+    benefits: ['Balanced muscle growth', 'High frequency per muscle', 'Flexible scheduling'],
     splits: [
       {
         day: 1,
@@ -90,6 +91,7 @@ const WORKOUT_TEMPLATES = {
     frequency: 4,
     level: ['beginner', 'intermediate', 'advanced'],
     goal_compatibility: ['muscle_gain', 'recomposition', 'maintenance'],
+    benefits: ['Great for strength', '4 days/week active', 'Good recovery balance'],
     splits: [
       {
         day: 1,
@@ -149,6 +151,7 @@ const WORKOUT_TEMPLATES = {
     frequency: 3,
     level: ['beginner', 'intermediate'],
     goal_compatibility: ['fat_loss', 'maintenance', 'recomposition'],
+    benefits: ['High calorie burn', 'Perfect for beginners', 'Missed days are less impactful'],
     splits: [
       {
         day: 1,
@@ -196,6 +199,7 @@ const WORKOUT_TEMPLATES = {
     frequency: 5,
     level: ['advanced'],
     goal_compatibility: ['muscle_gain'],
+    benefits: ['Maximum focus per muscle', 'Simple to follow', 'High volume'],
     splits: [
       {
         day: 1,
@@ -267,6 +271,7 @@ const WORKOUT_TEMPLATES = {
     frequency: 3,
     level: ['beginner', 'intermediate', 'advanced'],
     goal_compatibility: ['fat_loss', 'maintenance'],
+    benefits: ['Rapid fat loss', 'Short workout duration', 'Improved heart health'],
     splits: [
       {
         day: 1,
@@ -301,6 +306,238 @@ const WORKOUT_TEMPLATES = {
           { name: 'Plank Jacks', sets: [3, 3, 3], reps: [20, 30, 30], met: 7.0, equipment: 'bodyweight' }
         ]
       }
+    ]
+  },
+
+  powerlifting: {
+    id: 'powerlifting',
+    name: 'Powerlifting Split',
+    description: 'Focus on the "Big 3" lifts (Squat, Bench, Deadlift) to maximize raw strength. \nPrioritizes low reps with heavy weights and long rest periods.',
+    frequency: 4,
+    level: ['intermediate', 'advanced'],
+    goal_compatibility: ['strength'],
+    benefits: ['Maximize raw strength', 'Improve bone density', 'Master compound lifts'],
+    splits: [
+      { day: 1, name: 'Squat Focus', muscle_groups: ['legs'], exercises: [{ name: 'Squat', sets: 5, reps: 5, met: 6.0 }, { name: 'Leg Press', sets: 3, reps: 8, met: 5.0 }] },
+      { day: 2, name: 'Bench Focus', muscle_groups: ['chest'], exercises: [{ name: 'Bench Press', sets: 5, reps: 5, met: 6.0 }, { name: 'Close Grip Bench', sets: 3, reps: 8, met: 5.5 }] },
+      { day: 3, name: 'Deadlift Focus', muscle_groups: ['back'], exercises: [{ name: 'Deadlift', sets: 5, reps: 3, met: 6.0 }, { name: 'Barbell Row', sets: 3, reps: 8, met: 5.5 }] },
+      { day: 4, name: 'Accessory Day', muscle_groups: ['shoulders', 'arms'], exercises: [{ name: 'Overhead Press', sets: 4, reps: 6, met: 5.0 }, { name: 'Dips', sets: 3, reps: 10, met: 5.0 }] },
+    ]
+  },
+
+  phul: {
+    id: 'phul',
+    name: 'PHUL',
+    description: 'Power Hypertrophy Upper Lower. Blends strength and size training. \nBuilds heavy strength early in the week and muscle volume later.',
+    frequency: 4,
+    level: ['intermediate'],
+    goal_compatibility: ['muscle_gain', 'strength'],
+    benefits: ['Best of both worlds (Size & Strength)', 'High frequency training', 'Balanced physique'],
+    splits: [
+      { day: 1, name: 'Upper Power', muscle_groups: ['upper'], exercises: [{ name: 'Barbell Row', sets: 4, reps: 5, met: 6.0 }, { name: 'Bench Press', sets: 4, reps: 5, met: 6.0 }] },
+      { day: 2, name: 'Lower Power', muscle_groups: ['lower'], exercises: [{ name: 'Squat', sets: 4, reps: 5, met: 6.0 }, { name: 'Deadlift', sets: 4, reps: 5, met: 6.0 }] },
+      { day: 3, name: 'Upper Hypertrophy', muscle_groups: ['upper'], exercises: [{ name: 'Incline Dumbbell Press', sets: 3, reps: 10, met: 5.0 }, { name: 'Lat Pulldown', sets: 3, reps: 10, met: 4.5 }] },
+      { day: 4, name: 'Lower Hypertrophy', muscle_groups: ['lower'], exercises: [{ name: 'Front Squat', sets: 3, reps: 10, met: 5.5 }, { name: 'Lunges', sets: 3, reps: 12, met: 5.0 }] }
+    ]
+  },
+
+  phat: {
+    id: 'phat',
+    name: 'PHAT',
+    description: 'Power Hypertrophy Adaptive Training. High volume & intensity. \nCombines powerlifting speed work with bodybuilding volume.',
+    frequency: 5,
+    level: ['advanced'],
+    goal_compatibility: ['muscle_gain', 'strength'],
+    benefits: ['Maximum muscle hypertrophy', 'Break through plateaus', 'High calorie burn'],
+    splits: [
+      { day: 1, name: 'Upper Power', exercises: [{ name: 'Barbell Row', sets: 3, reps: 5 }, { name: 'Weighted Pullups', sets: 2, reps: 8 }] },
+      { day: 2, name: 'Lower Power', exercises: [{ name: 'Squat', sets: 3, reps: 5 }, { name: 'RDL', sets: 3, reps: 8 }] },
+      { day: 3, name: 'Back & Shoulders Hypertrophy', exercises: [{ name: 'Rack Chins', sets: 3, reps: 10 }, { name: 'Seated Press', sets: 3, reps: 12 }] },
+      { day: 4, name: 'Legs Hypertrophy', exercises: [{ name: 'Leg Press', sets: 3, reps: 15 }, { name: 'Hack Squat', sets: 3, reps: 12 }] },
+      { day: 5, name: 'Chest & Arms Hypertrophy', exercises: [{ name: 'Dumbbell Press', sets: 3, reps: 12 }, { name: 'Preacher Curl', sets: 3, reps: 12 }] }
+    ]
+  },
+
+  cardio_strength: {
+    id: 'cardio_strength',
+    name: 'Cardio + Strength Hybrid',
+    description: 'Balanced approach for general fitness and heart health. \nCombines resistance training with steady state cardio sessions.',
+    frequency: 4,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['fat_loss', 'maintenance', 'cardio'],
+    benefits: ['Improved endurance', 'Heart health', 'Sustainable fat loss'],
+    splits: [
+      { day: 1, name: 'Full Body Strength', exercises: [{ name: 'Goblet Squat', sets: 3, reps: 12 }, { name: 'Pushups', sets: 3, reps: 10 }] },
+      { day: 2, name: 'Steady State Cardio', exercises: [{ name: 'Jogging', duration_min: 30, met: 7.0 }] },
+      { day: 3, name: 'Full Body Strength', exercises: [{ name: 'Dumbbell Row', sets: 3, reps: 12 }, { name: 'Lunges', sets: 3, reps: 12 }] },
+      { day: 4, name: 'HIIT Cardio', exercises: [{ name: 'Sprint Intervals', duration_min: 20, met: 10.0 }] }
+    ]
+  },
+
+  functional: {
+    id: 'functional',
+    name: 'Functional Training Split',
+    description: 'Focuses on movement patterns used in daily life. \nPrioritizes core stability, balance, and multi-planar movements.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['functional', 'mobility'],
+    benefits: ['Real-world strength', 'Injury prevention', 'Better coordination'],
+    splits: [
+      { day: 1, name: 'Hinge & Push', exercises: [{ name: 'Kettlebell Swing', sets: 3, reps: 15 }, { name: 'Pushups', sets: 3, reps: 12 }] },
+      { day: 2, name: 'Squat & Pull', exercises: [{ name: 'Goblet Squat', sets: 3, reps: 12 }, { name: 'TRX Row', sets: 3, reps: 12 }] },
+      { day: 3, name: 'Lunge & Rotate', exercises: [{ name: 'Walking Lunges', sets: 3, reps: 20 }, { name: 'Russian Twist', sets: 3, reps: 20 }] }
+    ]
+  },
+
+  calisthenics: {
+    id: 'calisthenics',
+    name: 'Calisthenics Split',
+    description: 'Bodyweight-only mastery. \nBuild muscle and control using only your own body weight.',
+    frequency: 4,
+    level: ['beginner', 'intermediate', 'advanced'],
+    goal_compatibility: ['muscle_gain', 'strength', 'mobility'],
+    benefits: ['Master body control', 'No equipment needed', 'Gymnastic strength'],
+    splits: [
+      { day: 1, name: 'Push Skills', exercises: [{ name: 'Pushups', sets: 4, reps: 15 }, { name: 'Dips', sets: 3, reps: 10 }] },
+      { day: 2, name: 'Pull Skills', exercises: [{ name: 'Pullups', sets: 4, reps: 8 }, { name: 'Bodyweight Row', sets: 3, reps: 12 }] },
+      { day: 3, name: 'Leg Skills', exercises: [{ name: 'Pistol Squat Progression', sets: 3, reps: 5 }, { name: 'Lunges', sets: 3, reps: 20 }] },
+      { day: 4, name: 'Core & Static', exercises: [{ name: 'L-Sit Hold', sets: 3, duration: '20s' }, { name: 'Plank', sets: 3, duration: '60s' }] }
+    ]
+  },
+
+  home_workout: {
+    id: 'home_workout',
+    name: 'Home Workout Split',
+    description: 'Effective training with minimal space and equipment. \nPerfect for busy schedules and working out from home.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['maintenance', 'fat_loss'],
+    benefits: ['Convenient', 'Zero cost', 'Equipment-free'],
+    splits: [
+      { day: 1, name: 'Living Room Full Body', exercises: [{ name: 'Squats', sets: 3, reps: 20 }, { name: 'Pushups', sets: 3, reps: 15 }] },
+      { day: 2, name: 'Bedroom Core & Cardio', exercises: [{ name: 'Mountain Climbers', sets: 3, reps: 30 }, { name: 'Bicycle Crunch', sets: 3, reps: 20 }] },
+      { day: 3, name: 'Kitchen Legs & Glutes', exercises: [{ name: 'Glute Bridge', sets: 3, reps: 20 }, { name: 'Lunges', sets: 3, reps: 20 }] }
+    ]
+  },
+
+  sports_specific: {
+    id: 'sports_specific',
+    name: 'Sports-Specific Split',
+    description: 'Athlete-focused training for speed, agility, and power. \nEnhances explosive performance for field and court sports.',
+    frequency: 3,
+    level: ['intermediate', 'advanced'],
+    goal_compatibility: ['performance', 'mobility'],
+    benefits: ['Increase speed & agility', 'Explosive power', 'Injury resilience'],
+    splits: [
+      { day: 1, name: 'Power & Speed', exercises: [{ name: 'Box Jumps', sets: 4, reps: 5 }, { name: 'Sprint Intervals', duration_min: 15 }] },
+      { day: 2, name: 'Strength & Stability', exercises: [{ name: 'Trap Bar Deadlift', sets: 3, reps: 5 }, { name: 'Single Leg RDL', sets: 3, reps: 8 }] },
+      { day: 3, name: 'Agility & Conditioning', exercises: [{ name: 'Ladder Drills', duration_min: 10 }, { name: 'Burpees', sets: 3, reps: 15 }] }
+    ]
+  },
+
+  posture_correction: {
+    id: 'posture_correction',
+    name: 'Posture Correction Split',
+    description: 'Corrects forward head and rounded shoulders. \nStrengthens the upper back and core while stretching tight chest muscles.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['rehab', 'mobility'],
+    benefits: ['Fix "Tech Neck"', 'Stand taller', 'Reduce neck pain'],
+    splits: [
+      { day: 1, name: 'Upper Back Focus', exercises: [{ name: 'Face Pulls', sets: 3, reps: 15 }, { name: 'Doorway Stretch', duration: '60s' }] },
+      { day: 2, name: 'Core & Glutes', exercises: [{ name: 'Bird Dog', sets: 3, reps: 10 }, { name: 'Glute Bridge', sets: 3, reps: 15 }] },
+      { day: 3, name: 'Thoracic Mobility', exercises: [{ name: 'Cat Cow', duration: '60s' }, { name: 'Y-W-T Raises', sets: 3, reps: 10 }] }
+    ]
+  },
+
+  back_pain_rehab: {
+    id: 'back_pain_rehab',
+    name: 'Back Pain Rehab Split',
+    description: 'Gentle strengthening for a healthy spine. \nFocuses on core stability and glute activation to support the lower back.',
+    frequency: 3,
+    level: ['beginner'],
+    goal_compatibility: ['rehab', 'mobility'],
+    benefits: ['Reduce lower back pain', 'Strengthen core corset', 'Pain-free movement'],
+    splits: [
+      { day: 1, name: 'Core Stability', exercises: [{ name: 'Dead Bug', sets: 3, reps: 10 }, { name: 'Bird Dog', sets: 3, reps: 10 }] },
+      { day: 2, name: 'Glute Activation', exercises: [{ name: 'Clamshells', sets: 3, reps: 15 }, { name: 'Glute Bridge', sets: 3, reps: 12 }] },
+      { day: 3, name: 'Gentle Mobility', exercises: [{ name: 'Cat Cow', duration: '60s' }, { name: 'Childs Pose', duration: '60s' }] }
+    ]
+  },
+
+  knee_pain_friendly: {
+    id: 'knee_pain_friendly',
+    name: 'Knee Pain Friendly Split',
+    description: 'Low-impact muscle building that spares the knees. \nBuilds leg strength without heavy loading or high impact.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['rehab', 'muscle_gain'],
+    benefits: ['Build legs pain-free', 'Low joint impact', 'Strengthen supporting muscles'],
+    splits: [
+      { day: 1, name: 'Posterior Chain', exercises: [{ name: 'Romanian Deadlift', sets: 3, reps: 10 }, { name: 'Glute Bridge', sets: 3, reps: 15 }] },
+      { day: 2, name: 'Low Impact Cardio', exercises: [{ name: 'Swimming', duration_min: 20 }, { name: 'Elliptical', duration_min: 15 }] },
+      { day: 3, name: 'Iso & Stability', exercises: [{ name: 'Wall Sit', sets: 3, duration: '45s' }, { name: 'Side Leg Raises', sets: 3, reps: 15 }] }
+    ]
+  },
+
+  shoulder_rehab: {
+    id: 'shoulder_rehab',
+    name: 'Shoulder Rehab Split',
+    description: 'Rotator cuff and scapular stability focus. \nImproving shoulder health and range of motion.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['rehab', 'mobility'],
+    benefits: ['Bulletproof shoulders', 'Improve overhead mobility', 'Reduce impingement'],
+    splits: [
+      { day: 1, name: 'Rotator Cuff', exercises: [{ name: 'External Rotations', sets: 3, reps: 15 }, { name: 'Internal Rotations', sets: 3, reps: 15 }] },
+      { day: 2, name: 'Scapular Stability', exercises: [{ name: 'Scapular Pushups', sets: 3, reps: 12 }, { name: 'Face Pulls', sets: 3, reps: 15 }] },
+      { day: 3, name: 'Mobility', exercises: [{ name: 'Wall Angels', sets: 3, reps: 10 }, { name: 'Arm Circles', duration: '60s' }] }
+    ]
+  },
+
+  mobility_flexibility: {
+    id: 'mobility_flexibility',
+    name: 'Mobility & Flexibility Split',
+    description: 'Dedicated routine for joint health and range of motion. \nCombines yoga flows with dynamic stretching.',
+    frequency: 3,
+    level: ['beginner', 'intermediate', 'advanced'],
+    goal_compatibility: ['mobility', 'recovery'],
+    benefits: ['Feel younger', 'Move freely', 'Improve posture'],
+    splits: [
+      { day: 1, name: 'Lower Body Flow', exercises: [{ name: 'Pigeon Pose', duration: '60s' }, { name: 'World\'s Greatest Stretch', sets: 3, reps: 5 }] },
+      { day: 2, name: 'Upper Body Flow', exercises: [{ name: 'Doorway Stretch', duration: '60s' }, { name: 'T-Spine Rotation', sets: 3, reps: 10 }] },
+      { day: 3, name: 'Full Body Release', exercises: [{ name: 'Foam Rolling', duration_min: 10 }, { name: 'Deep Squat Hold', duration: '60s' }] }
+    ]
+  },
+
+  core_focused: {
+    id: 'core_focused',
+    name: 'Core-Focused Split',
+    description: 'Intense ab and core work for stability and aesthetics. \nTargets upper abs, lower abs, obliques, and lower back.',
+    frequency: 3,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['aesthetics', 'strength'],
+    benefits: ['Six-pack abs', 'Bulletproof core', 'Better balance'],
+    splits: [
+      { day: 1, name: 'Front Core', exercises: [{ name: 'Crunches', sets: 3, reps: 20 }, { name: 'Leg Raises', sets: 3, reps: 15 }] },
+      { day: 2, name: 'Obliques & Rotation', exercises: [{ name: 'Russian Twist', sets: 3, reps: 20 }, { name: 'Side Plank', sets: 3, duration: '45s' }] },
+      { day: 3, name: 'Static Stability', exercises: [{ name: 'Plank', sets: 3, duration: '60s' }, { name: 'Dead Bug', sets: 3, reps: 10 }] }
+    ]
+  },
+
+  fat_loss: {
+    id: 'fat_loss',
+    name: 'Fat Loss Focused Split',
+    description: 'High-rep metabolic conditioning. \nKeeps heart rate up with short rest periods and compound movements.',
+    frequency: 4,
+    level: ['beginner', 'intermediate'],
+    goal_compatibility: ['fat_loss', 'endurance'],
+    benefits: ['Max calorie burn', ' cardiovascular health', 'Muscle endurance'],
+    splits: [
+      { day: 1, name: 'Circuit A', exercises: [{ name: 'Squat Jumps', sets: 3, reps: 20 }, { name: 'Pushups', sets: 3, reps: 15 }, { name: 'Mountain Climbers', sets: 3, reps: 30 }] },
+      { day: 2, name: 'Cardio Intervals', exercises: [{ name: 'Walk/Run Intervals', duration_min: 30 }] },
+      { day: 3, name: 'Circuit B', exercises: [{ name: 'Lunges', sets: 3, reps: 20 }, { name: 'Burpees', sets: 3, reps: 10 }, { name: 'Plank', sets: 3, duration: '60s' }] },
+      { day: 4, name: 'Steady Cardio', exercises: [{ name: 'Brisk Walk', duration_min: 45 }] }
     ]
   }
 };

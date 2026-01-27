@@ -931,7 +931,7 @@ export const workoutAPI = {
 
   async getTemplates(): Promise<any[]> {
     const response = await apiClient.get('/workout/templates');
-    return response.data.templates || [];
+    return response.data.data?.templates || response.data.templates || [];
   },
 
   async getTemplateById(templateId: string): Promise<any> {
@@ -1616,6 +1616,45 @@ export const liveWorkoutAPI = {
   },
 };
 
+// ============================================================================
+// YOGA API (New Module)
+// ============================================================================
+export const yogaAPI = {
+  async getCategories(): Promise<any[]> {
+    const response = await apiClient.get('/yoga/categories');
+    return response.data;
+  },
+
+  async getSessions(category?: string, duration?: string): Promise<any[]> {
+    const params: any = {};
+    if (category) params.category = category;
+    if (duration) params.duration = duration;
+    const response = await apiClient.get('/yoga/sessions', { params });
+    return response.data;
+  },
+
+  async getSessionById(id: number): Promise<any> {
+    const response = await apiClient.get(`/yoga/session/${id}`);
+    return response.data;
+  },
+
+  async getTodaySuggestion(): Promise<any> {
+    const response = await apiClient.get('/yoga/today');
+    return response.data;
+  },
+
+  async logSession(data: {
+    session_id: number;
+    duration_completed_seconds: number;
+    completed: boolean;
+    mood_rating?: number;
+    notes?: string;
+  }): Promise<any> {
+    const response = await apiClient.post('/yoga/log', data);
+    return response.data;
+  }
+};
+
 export const api = {
   auth: authAPI,
   food: foodAPI,
@@ -1635,6 +1674,7 @@ export const api = {
   postureCare: postureCareAPI,
   recipe: recipeAPI,
   liveWorkout: liveWorkoutAPI,
+  yoga: yogaAPI,
 };
 
 export default apiClient;

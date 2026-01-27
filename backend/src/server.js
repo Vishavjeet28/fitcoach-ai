@@ -61,7 +61,7 @@ app.use('/api/', limiter);
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 5 auth attempts per windowMs
+  max: 500, // LIMIT INCREASED FOR DEV: 500 requests per 15 min
   message: 'Too many authentication attempts, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -70,7 +70,7 @@ const authLimiter = rateLimit({
 // Stricter rate limit for AI endpoints (IP-based abuse protection)
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // Limit each IP to 20 AI calls per hour (User-based limits applied in controller)
+  max: 1000, // LIMIT INCREASED FOR DEV: 1000 AI calls per hour
   message: 'Too many AI requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -128,6 +128,7 @@ import streaksRoutes from './routes/streaks.routes.js';
 import recipeRoutes from './routes/recipe.routes.js';
 import postureCareRoutes from './routes/postureCare.routes.js'; // NEW: Posture & Pain Care
 import liveWorkoutRoutes from './routes/liveWorkout.routes.js'; // NEW: Live Workout Execution
+import yogaRoutes from './routes/yoga.routes.js'; // NEW: Yoga Module
 
 // Apply routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -150,6 +151,7 @@ app.use('/api/streaks', streaksRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/posture-care', postureCareRoutes); // NEW: Posture & Pain Care
 app.use('/api/live-workout', liveWorkoutRoutes); // NEW: Live Workout Execution (Isolated)
+app.use('/api/yoga', yogaRoutes); // NEW: Yoga Module
 
 // 404 handler
 app.use((req, res) => {

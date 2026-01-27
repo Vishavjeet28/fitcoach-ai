@@ -21,21 +21,21 @@ import { logError } from '../utils/logger.js';
  */
 const getTemplates = async (req, res) => {
   try {
-    const templates = WorkoutLogicEngine.WORKOUT_TEMPLATES;
+    const templates = WorkoutLogicEngine.getTemplates();
 
     return res.status(200).json({
       success: true,
       data: {
-        templates: Object.keys(templates).map(key => ({
-          id: key,
-          name: templates[key].name,
-          description: templates[key].description,
-          frequency: templates[key].frequency,
-          split: templates[key].split,
-          best_for: templates[key].best_for,
-          experience_level: templates[key].experience_level
+        templates: templates.map(t => ({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          frequency: t.frequency,
+          level: t.level,
+          goal_compatibility: t.goal_compatibility,
+          benefits: t.benefits || []
         })),
-        total: Object.keys(templates).length
+        total: templates.length
       }
     });
   } catch (error) {
@@ -54,7 +54,7 @@ const getTemplates = async (req, res) => {
 const getTemplateById = async (req, res) => {
   try {
     const { templateId } = req.params;
-    const template = WorkoutLogicEngine.WORKOUT_TEMPLATES[templateId];
+    const template = WorkoutLogicEngine.getTemplate(templateId);
 
     if (!template) {
       return res.status(404).json({

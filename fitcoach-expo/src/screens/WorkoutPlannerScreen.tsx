@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, SafeAreaView, ActivityIndicator, FlatList } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +30,23 @@ export default function WorkoutPlannerScreen() {
   const [programDataState, setProgramDataState] = useState<any>(route.params?.program || null);
   const [generatedPlan, setGeneratedPlan] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<any>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
+
+  // Fetch templates when in generator view
+  useEffect(() => {
+    if (!dailyWorkoutState && !programDataState) {
+      fetchTemplates();
+    }
+  }, [dailyWorkoutState, programDataState]);
+
+  const fetchTemplates = async () => {
+    try {
+      const templates = await workoutAPI.getTemplates();
+      setAvailableTemplates(templates);
+    } catch (e) {
+      console.log('Error fetching templates', e);
+    }
+  };
 
   // Auto-fetch if no params passed (e.g. from Dashboard "Today's Workout" tap)
   useEffect(() => {
@@ -284,18 +301,63 @@ export default function WorkoutPlannerScreen() {
       {isProgramView && renderProgramContent()}
 
       {isGeneratorView && (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.card, { alignItems: 'center' }]}>
-            <MaterialCommunityIcons name="robot" size={48} color={colors.blue} style={{ marginBottom: 16 }} />
-            <Text style={styles.description}>
-              No active plan found. Let AI design a workout for you.
-            </Text>
-            <TouchableOpacity onPress={handleGenerate} disabled={loading} style={styles.button}>
-              <Text style={styles.buttonText}>{loading ? 'Generating...' : 'Generate New Plan'}</Text>
-            </TouchableOpacity>
-          </View>
-          {generatedPlan && <Text style={styles.resultText}>{generatedPlan}</Text>}
-        </ScrollView>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={availableTemplates}
+            contentContainerStyle={styles.scrollContent}
+            ListHeaderComponent={
+              <View style={{ marginBottom: 24 }}>
+                <View style={[styles.card, { alignItems: 'center', marginBottom: 24 }]}>
+                  <MaterialCommunityIcons name="robot" size={48} color={colors.blue} style={{ marginBottom: 16 }} />
+                  <Text style={styles.description}>
+                    Not sure which to pick? Let AI design a custom workout for you based on your goals.
+                  </Text>
+                  <TouchableOpacity onPress={handleGenerate} disabled={loading} style={styles.button}>
+                    <Text style={styles.buttonText}>{loading ? 'Generating...' : 'Generate For Me'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.sectionHeaderTitle}>Explore Workout Styles</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 16 }}>
+                  Browse our library of {availableTemplates.length} expert-designed splits.
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.templateCard}>
+                <View style={styles.templateHeaderRow}>
+                  <Text style={styles.templateTitle}>{item.name}</Text>
+                  <View style={styles.frequencyBadge}>
+                    <Text style={styles.frequencyText}>{item.frequency}d/wk</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.templateDesc}>{item.description}</Text>
+
+                {item.benefits && item.benefits.length > 0 && (
+                  <View style={styles.benefitsContainer}>
+                    <Text style={styles.benefitTitle}>Benefits:</Text>
+                    {item.benefits.map((b: string, i: number) => (
+                      <View key={i} style={{ flexDirection: 'row', marginBottom: 2 }}>
+                        <Text style={{ color: colors.primary, marginRight: 6 }}>•</Text>
+                        <Text style={styles.benefitText}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.tagsRow}>
+                  {item.level && item.level.map((lvl: string, i: number) => (
+                    <View key={i} style={styles.tagSmall}>
+                      <Text style={styles.tagSmallText}>{lvl}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) => item.id}
+          />
+        </View>
       )}
 
       {/* Exercise Details Modal */}
@@ -415,5 +477,19 @@ const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', marginBottom: 12 },
   stepNum: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.surfaceDark, color: colors.primary, textAlign: 'center', lineHeight: 24, marginRight: 12, fontWeight: 'bold' },
   stepText: { flex: 1, color: colors.textSecondary, lineHeight: 22, fontSize: 16 },
-  tipText: { color: colors.textSecondary, marginBottom: 8, fontSize: 14, fontStyle: 'italic' }
+  tipText: { color: colors.textSecondary, marginBottom: 8, fontSize: 14, fontStyle: 'italic' },
+
+  // Template Library Styles
+  templateCard: { backgroundColor: colors.surfaceDark, padding: 16, borderRadius: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  templateHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  templateTitle: { fontSize: 18, fontWeight: 'bold', color: colors.textPrimary, flex: 1, marginRight: 8 },
+  templateDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: 12 },
+  frequencyBadge: { backgroundColor: colors.primary + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  frequencyText: { color: colors.primaryDark, fontWeight: 'bold', fontSize: 12 },
+  benefitsContainer: { backgroundColor: colors.backgroundDark, padding: 12, borderRadius: 8, marginBottom: 12 },
+  benefitTitle: { fontSize: 12, fontWeight: 'bold', color: colors.textPrimary, marginBottom: 4, textTransform: 'uppercase' },
+  benefitText: { fontSize: 13, color: colors.textSecondary },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tagSmall: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  tagSmallText: { fontSize: 11, color: colors.textSub },
 });

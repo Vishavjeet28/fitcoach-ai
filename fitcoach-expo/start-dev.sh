@@ -7,7 +7,7 @@ echo "🚀 Starting FitCoach Expo Development Server..."
 echo ""
 
 # Navigate to the correct directory
-cd /Users/vishavjeetsingh/Downloads/fitcoach-expo
+cd /Users/vishavjeetsingh/Downloads/fitcoach-ai-main/fitcoach-expo
 
 # Show current directory
 echo "📁 Working directory: $(pwd)"

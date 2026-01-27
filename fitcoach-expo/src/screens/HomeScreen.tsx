@@ -21,6 +21,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -111,13 +113,7 @@ export default function HomeScreen() {
       hydration: { current: 1250, target: 3000 },
       steps: { current: 3500, goal: 10000 },
       weeklyTrend: [1950, 2100, 1850, 2050, 2200, 1900, 1450],
-      habits: [
-        { id: '1', name: 'Morning stretch', completed: true, icon: 'human-greeting' },
-        { id: '2', name: 'Drink water', completed: false, icon: 'cup-water' },
-        { id: '3', name: 'Take vitamins', completed: false, icon: 'pill' },
-        { id: '4', name: 'Walk 10 mins', completed: true, icon: 'walk' },
-        { id: '5', name: 'Mindful breathing', completed: false, icon: 'meditation' },
-      ],
+      habits: [],
       workout: undefined,
       tip: "Welcome! This is a preview of your dashboard.",
       streak: 3,
@@ -161,18 +157,18 @@ export default function HomeScreen() {
       ]);
 
       // Parse consumed
-      const summary = todayRes as any;
-      const caloriesConsumed = summary?.totalCalories || summary?.calories || 0;
-      const proteinConsumed = summary?.totalProtein || summary?.protein || 0;
-      const carbsConsumed = summary?.totalCarbs || summary?.carbs || 0;
-      const fatConsumed = summary?.totalFat || summary?.fat || 0;
+      const summaryData = (todayRes as any)?.summary || todayRes;
+      const caloriesConsumed = summaryData?.totalCalories || summaryData?.calories || 0;
+      const proteinConsumed = summaryData?.totalProtein || summaryData?.protein || 0;
+      const carbsConsumed = summaryData?.totalCarbs || summaryData?.carbs || 0;
+      const fatConsumed = summaryData?.totalFat || summaryData?.fat || 0;
 
       // Parse targets - Prioritize summary snapshot, then live targets
       const targets = (targetsRes as any)?.targets || targetsRes;
-      const calorieTarget = summary?.calorieTarget || targets?.calorie_target || targets?.dailyCalories || 2000;
-      const proteinTarget = summary?.proteinTarget || targets?.protein_target_g || targets?.protein || 150; // Default increased
-      const carbTarget = summary?.carbTarget || targets?.carb_target_g || 250;
-      const fatTarget = summary?.fatTarget || targets?.fat_target_g || 70;
+      const calorieTarget = summaryData?.calorieTarget || targets?.calorie_target || targets?.dailyCalories || 2000;
+      const proteinTarget = summaryData?.proteinTarget || targets?.protein_target_g || targets?.protein || 150; // Default increased
+      const carbTarget = summaryData?.carbTarget || targets?.carb_target_g || 250;
+      const fatTarget = summaryData?.fatTarget || targets?.fat_target_g || 70;
 
       // Calculate macros
       const totalMacros = proteinConsumed + carbsConsumed + fatConsumed;
@@ -400,7 +396,7 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={styles.header}>
+      <FadeInView delay={100} style={styles.header}>
         <View>
           <Text style={styles.greeting}>{greeting}, {userName}! 👋</Text>
           <Text style={styles.subtitle}>Here's your day at a glance</Text>
@@ -411,156 +407,150 @@ export default function HomeScreen() {
             <Text style={styles.streakText}>{data.streak}</Text>
           </View>
         )}
-      </View>
+      </FadeInView>
+
+
+      {/* ================================================================= */}
+      {/* NEW HOME SCREEN DESIGN IMPLEMENTATION */}
+      {/* ================================================================= */}
+
+      {/* 2. TODAY STATUS LINE (EMOTIONAL ANCHOR) */}
+      <FadeInView delay={200} style={{ paddingHorizontal: 24, marginBottom: 16 }}>
+        <Text style={{ fontSize: 17, color: '#64748B', fontWeight: '500', lineHeight: 24 }}>
+          {data.calories.consumed > data.calories.target
+            ? "You've hit your calorie goal! Great job on fueling up. 🎉"
+            : "You're on track today. Keep the momentum going! ✅"}
+        </Text>
+      </FadeInView>
+
+      {/* 1. PRIMARY PROGRESS SNAPSHOT (Left: Calories, Right: Protein) */}
+      <FadeInView delay={300} style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 24, marginBottom: 12 }}>
+        {/* Calories Remaining */}
+        <View style={{ flex: 1, backgroundColor: '#FFF', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#F1F5F9', alignItems: 'flex-start', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}>
+          <Text style={{ fontSize: 36, fontWeight: '800', color: '#0F172A', letterSpacing: -1.5, marginBottom: 4 }}>
+            {Math.max(0, Math.round(data.calories.target - data.calories.consumed))}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <MaterialCommunityIcons name="fire" size={16} color="#F59E0B" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 }}>CALORIES LEFT</Text>
+          </View>
+        </View>
+
+        {/* Protein Remaining */}
+        <View style={{ flex: 1, backgroundColor: '#FFF', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#F1F5F9', alignItems: 'flex-start', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}>
+          <Text style={{ fontSize: 36, fontWeight: '800', color: '#0F172A', letterSpacing: -1.5, marginBottom: 4 }}>
+            {Math.max(0, Math.round(data.protein.target - data.protein.consumed))}g
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <MaterialCommunityIcons name="food-steak" size={16} color="#8B5CF6" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 }}>PROTEIN LEFT</Text>
+          </View>
+        </View>
+      </FadeInView>
 
 
 
-      {/* Core Metrics: Rings */}
-      <View style={styles.ringsContainer}>
-        <ProgressRing
-          value={Number(data.calories.consumed) || 0}
-          max={Number(data.calories.target) || 2000}
-          color={colors.calories}
-          label="Calories"
-          unit="kcal"
-        />
-        <ProgressRing
-          value={Number(data.protein.consumed) || 0}
-          max={Number(data.protein.target) || 150}
-          color={colors.protein}
-          label="Protein"
-          unit="g"
-        />
-      </View>
+      <View style={{ height: 1, backgroundColor: '#F1F5F9', marginHorizontal: 24, marginBottom: 8 }} />
+      {/* END NEW HOME SCREEN DESIGN */}
+
+
 
       {/* Nutrition History Graph */}
       {nutritionHistory.length > 0 && data && (
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <MaterialCommunityIcons name="chart-bar" size={24} color={colors.primary} />
-                <Text style={styles.cardTitle}>Nutrition History</Text>
-              </View>
-              <Text style={styles.cardSubtitle}>Daily intake & breakdown</Text>
+        <View style={{ marginTop: 8, paddingHorizontal: 24 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialCommunityIcons name="chart-timeline-variant" size={24} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Weekly Macro Pulse</Text>
             </View>
-
-            {/* Today's Snapshot Ring */}
-            <View style={styles.smallRingContainer}>
-              <Svg height="50" width="50" viewBox="0 0 40 40">
-                <Circle cx="20" cy="20" r="16" stroke={colors.border} strokeWidth="4" fill="none" />
-                <Circle
-                  cx="20" cy="20" r="16"
-                  stroke={colors.calories}
-                  strokeWidth="4"
-                  fill="none"
-                  strokeDasharray={`${Math.min(100, (data.calories.consumed / data.calories.target) * 100)}, 100`}
-                  strokeDashoffset="0"
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin="20, 20"
-                />
-              </Svg>
-              <View style={styles.smallRingTextContainer}>
-                <Text style={styles.smallRingValue}>{Math.round(data.calories.consumed)}</Text>
-              </View>
-            </View>
+            <Text style={{ fontSize: 12, color: colors.textTertiary, fontWeight: '600' }}>Last 7 Days</Text>
           </View>
 
-          <View style={styles.graphContainer}>
-            {nutritionHistory.map((day, index) => {
-              const maxVal = 250;
-              const h = (val: number) => Math.min((val / maxVal) * 100, 100);
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 20 }}
+            style={{ marginHorizontal: -24 }}
+          >
+            <View style={{ width: 20 }} />
+            {[...nutritionHistory].reverse().map((day, index) => {
               const totalCal = Math.round((day.protein * 4) + (day.carbs * 4) + (day.fat * 9));
+              // Calculate relative widths for micro-bars (max 250g reference)
+              const w = (val: number) => Math.min((val / 200) * 100, 100);
+
+              const isToday = index === 0;
 
               return (
-                <View key={index} style={styles.graphColumn}>
-                  <Text style={styles.graphBarValue}>{totalCal}</Text>
-                  <View style={styles.barsGroup}>
-                    <View style={[styles.graphBar, { height: `${h(day.protein)}%`, backgroundColor: colors.protein }]} />
-                    <View style={[styles.graphBar, { height: `${h(day.carbs)}%`, backgroundColor: colors.carbs }]} />
-                    <View style={[styles.graphBar, { height: `${h(day.fat)}%`, backgroundColor: colors.fat }]} />
+                <View
+                  key={index}
+                  style={[
+                    styles.dayCard,
+                    isToday && { borderColor: colors.primary, borderWidth: 1.5, backgroundColor: '#F0FDFA' }
+                  ]}
+                >
+                  <View style={styles.dayCardHeader}>
+                    <Text style={[styles.dayCardTitle, isToday && { color: colors.primary }]}>{day.day}</Text>
+                    <Text style={styles.dayCardCal}>{totalCal}</Text>
+                    <Text style={styles.dayCardCalLabel}>kcal</Text>
                   </View>
-                  <Text style={styles.graphLabel}>{day.day}</Text>
+
+                  <View style={styles.dayCardDivider} />
+
+                  <View style={styles.macroRow}>
+                    <View style={styles.macroInfo}>
+                      <Text style={styles.macroLabel}>Pro</Text>
+                      <Text style={styles.macroValueProp}>{day.protein}g</Text>
+                    </View>
+                    <View style={styles.microBarBg}>
+                      <View style={[styles.microBarFill, { width: `${w(day.protein)}%`, backgroundColor: colors.protein }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.macroRow}>
+                    <View style={styles.macroInfo}>
+                      <Text style={styles.macroLabel}>Carb</Text>
+                      <Text style={styles.macroValueCarb}>{day.carbs}g</Text>
+                    </View>
+                    <View style={styles.microBarBg}>
+                      <View style={[styles.microBarFill, { width: `${w(day.carbs)}%`, backgroundColor: colors.carbs }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.macroRow}>
+                    <View style={styles.macroInfo}>
+                      <Text style={styles.macroLabel}>Fat</Text>
+                      <Text style={styles.macroValueFat}>{day.fat}g</Text>
+                    </View>
+                    <View style={styles.microBarBg}>
+                      <View style={[styles.microBarFill, { width: `${w(day.fat)}%`, backgroundColor: colors.fat }]} />
+                    </View>
+                  </View>
                 </View>
               );
             })}
-          </View>
-
-          <View style={styles.legendContainer}>
-            <View style={styles.legendItem}>
-              <View style={[styles.graphLegendDot, { backgroundColor: colors.protein }]} />
-              <Text style={styles.legendText}>Pro</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.graphLegendDot, { backgroundColor: colors.carbs }]} />
-              <Text style={styles.legendText}>Carb</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.graphLegendDot, { backgroundColor: colors.fat }]} />
-              <Text style={styles.legendText}>Fat</Text>
-            </View>
-          </View>
+            <View style={{ width: 24 }} />
+          </ScrollView>
         </View>
       )}
 
-      {/* Daily Workout Card (Moved) */}
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>💪 Today's Workout</Text>
-        {data.workout ? (
-          <TouchableOpacity
-            style={styles.workoutCard}
-            onPress={() => navigation.navigate('WorkoutSession')}
-          >
-            <LinearGradient
-              colors={[colors.secondary, '#7C3AED']}
-              style={styles.workoutGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View>
-                <Text style={styles.workoutTitle}>{data.workout.name}</Text>
-                <Text style={styles.workoutSubtitle}>
-                  {data.workout.duration_minutes} min • {data.workout.intensity}
-                </Text>
-              </View>
-              <View style={styles.workoutBtn}>
-                <MaterialCommunityIcons name="play" size={20} color={colors.secondary} />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.workoutCard, { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' }]}
-            onPress={() => navigation.navigate('WorkoutSession')}
-          >
-            <View style={styles.emptyWorkoutContent}>
-              <MaterialCommunityIcons name="calendar-check" size={24} color={colors.textTertiary} />
-              <View>
-                <Text style={styles.emptyWorkoutTitle}>Rest Day</Text>
-                <Text style={styles.emptyWorkoutSubtitle}>Tap to browse workouts</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Posture & Pain Care Card */}
-      <View style={styles.sectionContainer}>
-        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>🧘 Posture & Pain Care</Text>
+
+      {/* Posture Correction Card */}
+      <FadeInView delay={400} style={styles.sectionContainer}>
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>🧘 Posture Correction</Text>
         <TouchableOpacity
           style={styles.postureCareCard}
-          onPress={() => navigation.navigate('PostureCare')}
+          onPress={() => navigation.navigate('Posture')}
         >
-          <View style={styles.postureCareIconContainer}>
-            <MaterialCommunityIcons name="human-handsup" size={28} color="#2C696D" />
+          <View style={[styles.postureCareIconContainer, { backgroundColor: '#26d9bb20' }]}>
+            <MaterialCommunityIcons name="human-handsup" size={28} color="#26d9bb" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.postureCareTitle}>Daily Corrective Plan</Text>
+            <Text style={styles.postureCareTitle}>Fix Your Alignment</Text>
             <Text style={styles.postureCareSubtitle}>
               {postureCare?.completedToday
                 ? '✓ Completed today'
-                : `${postureCare?.estimatedMinutes || 4} min • Recommended`}
+                : `${postureCare?.estimatedMinutes || 4} min • Improve your posture`}
             </Text>
           </View>
           {(postureCare?.currentStreak || 0) > 0 && (
@@ -571,83 +561,119 @@ export default function HomeScreen() {
           )}
           <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textTertiary} />
         </TouchableOpacity>
-      </View>
+      </FadeInView>
 
-      {/* Macronutrients Dashboard - Light Themed */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.macroDashboard}>
+      {/* Pain Care Card */}
+      <FadeInView delay={450} style={styles.sectionContainer}>
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>🩹 Pain Care & Rehab</Text>
+        <TouchableOpacity
+          style={[styles.postureCareCard, { borderLeftColor: '#F59E0B', borderLeftWidth: 4 }]}
+          onPress={() => navigation.navigate('PainRelief')}
+        >
+          <View style={[styles.postureCareIconContainer, { backgroundColor: '#F59E0B20' }]}>
+            <MaterialCommunityIcons name="bandage" size={28} color="#F59E0B" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.postureCareTitle}>Targeted Pain Relief</Text>
+            <Text style={styles.postureCareSubtitle}>
+              Back, Knee, Shoulder & more
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </FadeInView>
+
+      {/* Yoga & Mindfulness Card */}
+      <FadeInView delay={500} style={styles.sectionContainer}>
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>🧘 Yoga & Mindfulness</Text>
+        <TouchableOpacity
+          style={[styles.postureCareCard, { borderLeftColor: '#8DA399', borderLeftWidth: 4 }]}
+          onPress={() => navigation.navigate('Yoga', { screen: 'YogaMain' })}
+        >
+          <View style={[styles.postureCareIconContainer, { backgroundColor: '#8DA39920' }]}>
+            <MaterialCommunityIcons name="meditation" size={28} color="#8DA399" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.postureCareTitle}>Find Your Balance</Text>
+            <Text style={styles.postureCareSubtitle}>
+              Move gently • Breathe deeply
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </FadeInView>
+
+      {/* Macronutrients Dashboard - Luxurious Animation */}
+      <FadeInView delay={500} style={styles.sectionContainer}>
+        <LinearGradient
+          colors={['#FFFFFF', '#F8FAFC']}
+          style={styles.macroDashboard}
+        >
+          {/* Header */}
           <View style={styles.macroDashboardHeader}>
-            <Text style={styles.macroDashboardTitle}>MACRONUTRIENTS</Text>
-            <TouchableOpacity>
-              <MaterialCommunityIcons name="dots-horizontal" size={24} color="#64748B" />
-            </TouchableOpacity>
+            <View>
+              <Text style={styles.macroDashboardTitle}>NUTRITION BALANCE</Text>
+              <Text style={styles.macroDashboardSubtitle}>Daily Fuel Breakdown</Text>
+            </View>
+            <View style={styles.macroMenuBtn}>
+              <MaterialCommunityIcons name="chart-pie" size={20} color="#64748B" />
+            </View>
           </View>
 
-          <View style={styles.macroDashboardContent}>
-            {/* Left: Donut Chart */}
-            <View style={styles.macroDonutSection}>
+          <View style={styles.macroContentRow}>
+            {/* Left: Enhanced Donut */}
+            <View style={styles.donutContainer}>
               <MacroDonut
                 fat={data.macros.fat}
                 carbs={data.macros.carbs}
                 protein={data.macros.protein}
               />
-
-              {/* Legend */}
-              <View style={styles.macroLegend}>
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-                  <Text style={styles.legendLabel}>Fat</Text>
-                  <Text style={styles.legendValue}>{data.macros.fat}%</Text>
-                </View>
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
-                  <Text style={styles.legendLabel}>Carbs</Text>
-                  <Text style={styles.legendValue}>{data.macros.carbs}%</Text>
-                </View>
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
-                  <Text style={styles.legendLabel}>Protein</Text>
-                  <Text style={styles.legendValue}>{data.macros.protein}%</Text>
-                </View>
-              </View>
             </View>
 
-            {/* Right: Weekly Bars + AVG */}
-            <View style={styles.macroWeeklySection}>
-              {/* Weekly Bars */}
-              <View style={styles.weeklyBars}>
-                {['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'].map((day, index) => {
-                  const isToday = index === new Date().getDay() - 1 || (new Date().getDay() === 0 && index === 6);
-                  const height = data.weeklyTrend[index] ? Math.min(100, (data.weeklyTrend[index] / data.calories.target) * 100) : 20;
-                  return (
-                    <View key={day} style={styles.barColumn}>
-                      <View style={[styles.weeklyBar, { height: height }]} />
-                      <Text style={[styles.barLabel, isToday && styles.barLabelActive]}>{day}</Text>
-                    </View>
-                  );
-                })}
+            {/* Right: Detailed Breakdown */}
+            <View style={styles.macroDetailsCol}>
+              {/* Protein */}
+              <View style={styles.macroDetailItem}>
+                <View style={styles.macroLabelRow}>
+                  <View style={[styles.indicatorDot, { backgroundColor: colors.protein }]} />
+                  <Text style={styles.detailLabel}>Protein</Text>
+                  <Text style={styles.detailValue}>{data.macros.protein || 0}%</Text>
+                </View>
+                <View style={styles.detailProgressBarBg}>
+                  <View style={[styles.detailProgressBarFill, { width: `${data.macros.protein}%`, backgroundColor: colors.protein }]} />
+                </View>
               </View>
 
-              {/* AVG Badges */}
-              <View style={styles.avgRow}>
-                <Text style={styles.avgLabel}>AVG</Text>
-                <View style={[styles.avgBadge, { backgroundColor: '#F59E0B' }]}>
-                  <Text style={styles.avgBadgeText}>{data.macros.fat}%</Text>
+              {/* Carbs */}
+              <View style={styles.macroDetailItem}>
+                <View style={styles.macroLabelRow}>
+                  <View style={[styles.indicatorDot, { backgroundColor: colors.carbs }]} />
+                  <Text style={styles.detailLabel}>Carbs</Text>
+                  <Text style={styles.detailValue}>{data.macros.carbs || 0}%</Text>
                 </View>
-                <View style={[styles.avgBadge, { backgroundColor: '#3B82F6' }]}>
-                  <Text style={styles.avgBadgeText}>{data.macros.carbs}%</Text>
+                <View style={styles.detailProgressBarBg}>
+                  <View style={[styles.detailProgressBarFill, { width: `${data.macros.carbs}%`, backgroundColor: colors.carbs }]} />
                 </View>
-                <View style={[styles.avgBadge, { backgroundColor: '#8B5CF6' }]}>
-                  <Text style={styles.avgBadgeText}>{data.macros.protein}%</Text>
+              </View>
+
+              {/* Fat */}
+              <View style={styles.macroDetailItem}>
+                <View style={styles.macroLabelRow}>
+                  <View style={[styles.indicatorDot, { backgroundColor: colors.fat }]} />
+                  <Text style={styles.detailLabel}>Fats</Text>
+                  <Text style={styles.detailValue}>{data.macros.fat || 0}%</Text>
+                </View>
+                <View style={styles.detailProgressBarBg}>
+                  <View style={[styles.detailProgressBarFill, { width: `${data.macros.fat}%`, backgroundColor: colors.fat }]} />
                 </View>
               </View>
             </View>
           </View>
-        </View>
-      </View>
+        </LinearGradient>
+      </FadeInView>
 
       {/* Stats Row */}
-      <View style={styles.statsRow}>
+      <FadeInView delay={600} style={styles.statsRow}>
         <View style={[styles.statCard, { flex: 1, marginRight: 8 }]}>
           <View style={styles.statHeader}>
             <MaterialCommunityIcons name="cup-water" size={24} color={colors.water} />
@@ -669,45 +695,98 @@ export default function HomeScreen() {
           </Text>
           <Text style={styles.statLabel}>of {data.steps.goal / 1000}k steps</Text>
         </View>
-      </View>
+      </FadeInView>
 
-      {/* Habits (Tap-Only) */}
-      <View style={styles.card}>
+      {/* Daily Rituals (Habits) */}
+      <FadeInView delay={700} style={styles.sectionContainer}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Text style={styles.cardTitle}>✅ Daily Habits</Text>
+          <Text style={styles.sectionTitle}>✨ Daily Rituals</Text>
           <TouchableOpacity onPress={() => setShowHabitModal(true)}>
-            <LinearGradient
-              colors={[colors.primary, '#1fbda1']}
-              style={{ padding: 6, borderRadius: 8 }}
-            >
-              <MaterialCommunityIcons name="plus" size={16} color="#fff" />
-            </LinearGradient>
+            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
-        <View style={styles.habitsRow}>
-          {data.habits.map((habit) => (
-            <TouchableOpacity
-              key={habit.id}
-              style={[styles.habitChip, habit.completed && styles.habitChipCompleted]}
-              onPress={() => toggleHabit(habit.id)}
+
+        {data.habits.length === 0 ? (
+          <TouchableOpacity
+            style={styles.emptyHabitCard}
+            onPress={async () => {
+              setLoading(true);
+              const defaults = [
+                { habit_name: 'Morning Power', icon: 'weather-sunny' },
+                { habit_name: 'Hydrate', icon: 'cup-water' },
+                { habit_name: 'Read 15m', icon: 'book-open-page-variant' },
+                { habit_name: 'Walk', icon: 'walk' },
+                { habit_name: 'No Sugar', icon: 'food-off' },
+              ];
+              try {
+                for (const h of defaults) {
+                  await habitsAPI.createHabit(h);
+                }
+                loadDashboardData();
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            <LinearGradient
+              colors={[colors.primaryLight, '#E0F2F1']}
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 20 }}
             >
-              <MaterialCommunityIcons
-                name={habit.icon as any}
-                size={20}
-                color={habit.completed ? '#fff' : colors.textSecondary}
-              />
-              <Text style={[styles.habitText, habit.completed && styles.habitTextCompleted]}>
-                {habit.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+              <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
+                <MaterialCommunityIcons name="magic-staff" size={24} color="#FFF" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textPrimary }}>Initialize Rituals</Text>
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>Tap to add 5 starter habits</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 4 }}
+            style={{ marginHorizontal: -24 }}
+          >
+            <View style={{ width: 24 }} />
+            {data.habits.map((habit) => (
+              <TouchableOpacity
+                key={habit.id}
+                style={styles.habitCapsule}
+                onPress={() => toggleHabit(habit.id)}
+              >
+                <View style={[
+                  styles.habitIconContainer,
+                  habit.completed && { backgroundColor: colors.primary, borderColor: colors.primary }
+                ]}>
+                  <MaterialCommunityIcons
+                    name={habit.completed ? "check" : (habit.icon || "star") as any}
+                    size={24}
+                    color={habit.completed ? "#FFF" : colors.textSecondary}
+                  />
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.habitCapsuleText,
+                    habit.completed && { color: colors.textPrimary, fontWeight: '700' }
+                  ]}
+                >
+                  {habit.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <View style={{ width: 24 }} />
+          </ScrollView>
+        )}
+      </FadeInView>
 
       {/* Daily Workout Card */}
 
       {/* Quick Actions Grid */}
-      <View style={styles.sectionContainer}>
+      <FadeInView delay={800} style={styles.sectionContainer}>
         <Text style={styles.sectionTitle}>⚡ Quick Actions</Text>
         <View style={styles.actionGrid}>
           <TouchableOpacity
@@ -771,7 +850,7 @@ export default function HomeScreen() {
             <Text style={styles.actionLabel}>Recipes</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </FadeInView>
 
       {/* Weight Modal */}
       <Modal
@@ -821,6 +900,40 @@ export default function HomeScreen() {
               onChangeText={setNewHabitName}
               autoFocus
             />
+
+            {/* Quick Pick Ideas */}
+            <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 8, fontWeight: '600' }}>💡 Ideas (Quick Pick)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[
+                  { name: 'Morning Walk', icon: 'walk' },
+                  { name: 'Drink 3L Water', icon: 'cup-water' },
+                  { name: 'No Sugar', icon: 'food-off' },
+                  { name: 'Read 15m', icon: 'book-open-page-variant' },
+                  { name: 'Meditate', icon: 'meditation' },
+                  { name: 'Sleep 8h', icon: 'sleep' },
+                  { name: 'Journal', icon: 'notebook' }
+                ].map((idea) => (
+                  <TouchableOpacity
+                    key={idea.name}
+                    style={{
+                      backgroundColor: '#F1F5F9',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: '#E2E8F0'
+                    }}
+                    onPress={() => {
+                      setNewHabitName(idea.name);
+                      setNewHabitIcon(idea.icon);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.textPrimary, fontWeight: '500' }}>{idea.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
             <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 8, fontWeight: '600' }}>Choose Icon</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
@@ -877,63 +990,13 @@ export default function HomeScreen() {
   );
 }
 
-// Progress Ring Component
-const ProgressRing = ({ value, max, color, label, unit }: {
-  value: number;
-  max: number;
-  color: string;
-  label: string;
-  unit: string;
-}) => {
-  const size = (width - 80) / 2;
-  const strokeWidth = 12;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
 
-  // Safety: Ensure valid numbers and prevent division by zero
-  const safeValue = isNaN(value) ? 0 : value;
-  const safeMax = isNaN(max) || max <= 0 ? 1 : max;
-  const percentage = Math.min(safeValue / safeMax, 1);
-  const strokeDashoffset = circumference * (1 - percentage);
-
-  return (
-    <View style={styles.ringContainer}>
-      <Svg width={size} height={size}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={colors.border}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
-        />
-      </Svg>
-      <View style={styles.ringCenter}>
-        <Text style={styles.ringValue}>{Math.round(value)}</Text>
-        <Text style={styles.ringMax}>/ {max} {unit}</Text>
-        <Text style={styles.ringLabel}>{label}</Text>
-      </View>
-    </View>
-  );
-};
 
 // Macro Donut Component for light themed card
+// Macro Donut Component for light themed card
 const MacroDonut = ({ fat, carbs, protein }: { fat: number; carbs: number; protein: number }) => {
-  const size = 85;
-  const strokeWidth = 10;
+  const size = 110;
+  const strokeWidth = 12;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
@@ -943,7 +1006,6 @@ const MacroDonut = ({ fat, carbs, protein }: { fat: number; carbs: number; prote
   const carbsDash = (carbs / total) * circumference;
   const proteinDash = (protein / total) * circumference;
 
-  // If no data, show empty gray ring
   const isEmpty = total <= 1;
 
   return (
@@ -954,13 +1016,13 @@ const MacroDonut = ({ fat, carbs, protein }: { fat: number; carbs: number; prote
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={colors.border}
+          stroke="#F1F5F9"
           strokeWidth={strokeWidth}
           fill="none"
         />
         {!isEmpty && (
           <>
-            {/* Fat segment - Yellow */}
+            {/* Fat segment - Amber */}
             <Circle
               cx={size / 2}
               cy={size / 2}
@@ -1004,6 +1066,10 @@ const MacroDonut = ({ fat, carbs, protein }: { fat: number; carbs: number; prote
           </>
         )}
       </Svg>
+      <View style={{ position: 'absolute', alignItems: 'center' }}>
+        <Text style={{ fontSize: 10, color: '#94A3B8', fontWeight: '700', letterSpacing: 0.5 }}>MACRO</Text>
+        <Text style={{ fontSize: 16, color: '#1E293B', fontWeight: '800' }}>SPLIT</Text>
+      </View>
     </View>
   );
 };
@@ -1014,6 +1080,36 @@ const getGreeting = () => {
   if (hour < 12) return 'Good morning';
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
+};
+
+const FadeInView = ({ delay = 0, children, style }: any) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.poly(4)),
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.poly(4)),
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[style, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+      {children}
+    </Animated.View>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -1064,34 +1160,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#F97316',
   },
-  ringsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  ringContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-  },
-  ringValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  ringMax: {
-    fontSize: 12,
-    color: colors.textTertiary,
-  },
-  ringLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
+
   card: {
     backgroundColor: colors.surface,
     borderRadius: 24,
@@ -1471,110 +1540,104 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   // Macronutrients Dashboard - Light Theme
+  // Macronutrients Dashboard - Luxurious Design
   macroDashboard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
   macroDashboardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
   macroDashboardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 2,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
-  macroDashboardContent: {
+  macroDashboardSubtitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    letterSpacing: -0.5,
+  },
+  macroMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  macroContentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
+    gap: 32,
   },
-  macroDonutSection: {
+  donutContainer: {
+    position: 'relative',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  macroDetailsCol: {
+    flex: 1,
     gap: 16,
   },
-  macroLegend: {
-    gap: 8,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    width: 55,
-  },
-  legendValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  macroWeeklySection: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  weeklyBars: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 100,
-    gap: 4,
-  },
-  barColumn: {
-    alignItems: 'center',
+  macroDetailItem: {
     gap: 6,
   },
-  weeklyBar: {
-    width: 16,
-    backgroundColor: colors.border,
-    borderRadius: 4,
-    minHeight: 20,
-  },
-  barLabel: {
-    fontSize: 11,
-    color: colors.textTertiary,
-    fontWeight: '500',
-  },
-  barLabelActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  avgRow: {
+  macroLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
+    justifyContent: 'space-between',
   },
-  avgLabel: {
-    fontSize: 12,
-    color: colors.textTertiary,
+  indicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  detailLabel: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#64748B',
+    flex: 1,
   },
-  avgBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  avgBadgeText: {
-    fontSize: 12,
+  detailValue: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#1E293B',
+  },
+  detailProgressBarBg: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  detailProgressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  macroFooter: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    display: 'none', // Hidden for cleaner look, can enable if needed
   },
 
   // Posture Card
@@ -1624,5 +1687,123 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#F97316',
+  },
+
+  // New Innovative Nutrition Stats Styles
+  dayCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    width: 130, // Fixed width for horizontal scroll items
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  dayCardHeader: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dayCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  dayCardCal: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  dayCardCalLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textTertiary,
+  },
+  dayCardDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    width: '100%',
+    marginBottom: 12,
+  },
+  macroRow: {
+    marginBottom: 10,
+  },
+  macroInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
+  macroLabel: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontWeight: '600',
+  },
+  macroValueProp: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.protein,
+  },
+  macroValueCarb: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.carbs,
+  },
+  macroValueFat: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.fat,
+  },
+  microBarBg: {
+    height: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 2,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  microBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+
+  // New Habits Styles
+  emptyHabitCard: {
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  habitCapsule: {
+    alignItems: 'center',
+    marginRight: 16,
+    width: 72,
+    gap: 8,
+  },
+  habitIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  habitCapsuleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

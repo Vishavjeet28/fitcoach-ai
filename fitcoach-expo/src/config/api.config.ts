@@ -19,6 +19,8 @@ import Constants from 'expo-constants';
 //   "EXPO_PUBLIC_API_URL": "https://your-api.com/api"
 // }
 
+
+
 const getApiBaseUrl = (): string => {
   // Priority 1: Environment variable (production builds)
   const envUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL ||
@@ -28,11 +30,17 @@ const getApiBaseUrl = (): string => {
     return envUrl;
   }
 
-  // Priority 2: Development fallback (your local network IP)
+  // Priority 2: Development fallback
   if (__DEV__) {
-    // IMPORTANT: This should match your computer's current IP
-    // Find your IP with: ifconfig | grep "inet " | grep -v 127.0.0.1
-    return 'http://192.168.68.183:5001/api';
+    // For development, use the network IP which works for both
+    // simulators and physical devices on the same WiFi
+    // 
+    // iOS Simulator CAN use localhost, but network IP works too
+    // Android emulator uses 10.0.2.2, but network IP also works if on same network
+    // Physical devices MUST use network IP
+    //
+    // Using network IP universally for simplicity:
+    return 'http://192.168.31.240:5001/api';
   }
 
   // Priority 3: Production must have env variable set

@@ -386,6 +386,40 @@ const DashboardScreen = () => {
           </View>
         </View>
 
+        {/* Recovery & Wellness */}
+        <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
+          <Text style={styles.sectionTitle}>Recovery & Wellness</Text>
+          <View style={{ flexDirection: 'column', gap: 12, marginTop: 12 }}>
+            <TouchableOpacity
+              style={[styles.heroCard, { backgroundColor: theme.surface, width: '100%', padding: 16, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start' }]}
+              onPress={() => navigation.navigate('Posture')}
+            >
+              <View style={[styles.statIcon, { backgroundColor: theme.primary + '15', marginRight: 16 }]}>
+                <MaterialCommunityIcons name="human-handsup" size={28} color={theme.primary} />
+              </View>
+              <View>
+                <Text style={[styles.cardLabel, { fontSize: 16 }]}>Posture Correction</Text>
+                <Text style={[styles.cardSubLabel, { color: theme.textSub, fontSize: 13, fontWeight: '500' }]}>Fix alignment & Tech neck</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={theme.textSub} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.heroCard, { backgroundColor: theme.surface, width: '100%', padding: 16, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start' }]}
+              onPress={() => navigation.navigate('PainRelief')}
+            >
+              <View style={[styles.statIcon, { backgroundColor: theme.accentAmber + '15', marginRight: 16 }]}>
+                <MaterialCommunityIcons name="bandage" size={28} color={theme.accentAmber} />
+              </View>
+              <View>
+                <Text style={[styles.cardLabel, { fontSize: 16 }]}>Pain Relief & Care</Text>
+                <Text style={[styles.cardSubLabel, { color: theme.textSub, fontSize: 13, fontWeight: '500' }]}>Targeted rehab plans</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={theme.textSub} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Today's Focus */}
         <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
           <Text style={styles.sectionTitle}>Today's Focus</Text>

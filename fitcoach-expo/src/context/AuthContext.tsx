@@ -69,7 +69,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   useEffect(() => {
-    loadStoredAuth();
+    // Safety timeout: If still loading after 6 seconds, force unauthenticated
+    const safetyTimeout = setTimeout(() => {
+      setAuthStatus((prev) => {
+        if (prev === 'loading') {
+          console.warn('⚠️ [AUTH] Safety timeout triggered: Forcing unauthenticated state');
+          return 'unauthenticated';
+        }
+        return prev;
+      });
+    }, 6000);
+
+    loadStoredAuth().finally(() => clearTimeout(safetyTimeout));
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser && !firebaseUser.emailVerified) {
@@ -78,34 +89,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(safetyTimeout);
+      unsubscribe();
+    };
   }, []);
 
   /**
    * CRITICAL: Call /api/auth/me to get authoritative auth + onboarding state
    * Backend DB is SINGLE SOURCE OF TRUTH
    */
+  /**
+   * CRITICAL: Call /api/auth/me to get authoritative auth + onboarding state
+   * Backend DB is SINGLE SOURCE OF TRUTH
+   */
   const fetchAuthMeFromBackend = async (): Promise<User | null> => {
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
-        method: 'GET',
-        headers: {
-          ...getHeaders(),
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // Add timeout to prevent hanging indefinitely
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout (reduced from 15s)
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          console.log('⚠️ [AUTH] Token expired, clearing auth');
-          await clearAllAuthData();
-          return null;
+      try {
+        const response = await fetch(`${API_URL}/auth/me`, {
+          method: 'GET',
+          headers: {
+            ...getHeaders(),
+            'Authorization': `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            console.log('⚠️ [AUTH] Token expired, clearing auth');
+            await clearAllAuthData();
+            return null;
+          }
+          throw new Error(`/auth/me failed with status ${response.status}`);
         }
-        throw new Error(`/auth/me failed with status ${response.status}`);
-      }
 
-      const data = await response.json();
-      return data.user;
+        const data = await response.json();
+        return data.user;
+      } catch (innerErr) {
+        clearTimeout(timeoutId);
+        throw innerErr;
+      }
     } catch (err) {
       console.error('❌ [AUTH] Failed to fetch /auth/me:', err);
       throw err;
@@ -130,11 +160,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         try {
           // Validate token
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout (reduced from 15s)
+
           const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ refreshToken: storedRefreshToken }),
+            signal: controller.signal,
           });
+
+          clearTimeout(timeoutId);
 
           if (!refreshResponse.ok) {
             console.warn('⚠️ [AUTH] Token refresh failed');

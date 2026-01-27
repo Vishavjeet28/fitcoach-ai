@@ -43,8 +43,17 @@ import TodosScreen from '../screens/TodosScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import PlannerScreen from '../screens/PlannerScreen';
 import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
+import PostureScreen from '../screens/PostureScreen';
+import PainReliefScreen from '../screens/PainReliefScreen';
 import PostureCareScreen from '../screens/PostureCareScreen';
 import CorrectiveSessionScreen from '../screens/CorrectiveSessionScreen';
+
+// Yoga Screens
+import YogaHomeScreen from '../screens/yoga/YogaHomeScreen';
+import YogaCategoryScreen from '../screens/yoga/YogaCategoryScreen';
+import YogaSessionScreen from '../screens/yoga/YogaSessionScreen';
+import YogaLiveSessionScreen from '../screens/yoga/YogaLiveSessionScreen';
+import YogaCompletionScreen from '../screens/yoga/YogaCompletionScreen';
 
 // Components
 import { NotificationManager } from '../components/NotificationManager';
@@ -63,6 +72,31 @@ const colors = {
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const YogaStack = createNativeStackNavigator();
+
+/**
+ * Yoga Module Navigator
+ * Dedicated stack for Yoga flow
+ */
+function YogaNavigator() {
+  return (
+    <YogaStack.Navigator screenOptions={{ headerShown: false }}>
+      <YogaStack.Screen name="YogaMain" component={YogaHomeScreen} />
+      <YogaStack.Screen name="YogaCategory" component={YogaCategoryScreen} />
+      <YogaStack.Screen name="YogaSession" component={YogaSessionScreen} />
+      <YogaStack.Screen
+        name="YogaLiveSession"
+        component={YogaLiveSessionScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <YogaStack.Screen
+        name="YogaCompletion"
+        component={YogaCompletionScreen}
+        options={{ gestureEnabled: false }}
+      />
+    </YogaStack.Navigator>
+  );
+}
 
 /**
  * Main Tab Navigator
@@ -146,15 +180,15 @@ function TabNavigator() {
         }}
       />
 
-      {/* TAB 4: PROGRESS - Reflection & analytics */}
+      {/* TAB 4: YOGA - Mindfulness & Movement */}
       <Tab.Screen
-        name="Progress"
-        component={ProgressScreen}
+        name="YogaTab"
+        component={YogaNavigator}
         options={{
-          tabBarLabel: 'Progress',
+          tabBarLabel: 'Yoga',
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialCommunityIcons
-              name={focused ? 'chart-line' : 'chart-line-variant'}
+              name={focused ? 'meditation' : 'meditation'}
               color={color}
               size={size}
             />
@@ -271,7 +305,7 @@ export default function AppNavigator() {
               options={{ presentation: 'modal' }}
             />
             <Stack.Screen
-              name="WorkoutSession"
+              name="WorkoutPlanner"
               component={WorkoutPlannerScreen}
               options={{ presentation: 'card' }}
             />
@@ -299,6 +333,9 @@ export default function AppNavigator() {
               }}
             />
 
+            <Stack.Screen name="Posture" component={PostureScreen} />
+            <Stack.Screen name="PainRelief" component={PainReliefScreen} />
+
             {/* Posture & Pain Care */}
             <Stack.Screen name="PostureCare" component={PostureCareScreen} />
             <Stack.Screen
@@ -308,6 +345,14 @@ export default function AppNavigator() {
                 presentation: 'fullScreenModal',
                 gestureEnabled: false
               }}
+            />
+
+
+            {/* Yoga Module */}
+            <Stack.Screen
+              name="Yoga"
+              component={YogaNavigator}
+              options={{ headerShown: false }}
             />
           </Stack.Navigator>
         </NavigationContainer>

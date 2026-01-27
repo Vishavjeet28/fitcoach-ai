@@ -9,6 +9,11 @@ import {
   getExerciseTotals
 } from '../controllers/exercise.controller.js';
 import {
+  estimateCalories,
+  getExerciseLibrary,
+  getPersonalRecords
+} from '../controllers/exerciseEstimation.controller.js';
+import {
   logExerciseValidator,
   updateExerciseLogValidator,
   getExerciseLogsValidator,
@@ -33,5 +38,10 @@ router.get('/search', searchExercisesValidator, validate, searchExercises);
 
 // Exercise totals
 router.get('/totals', getExerciseTotalsValidator, validate, getExerciseTotals);
+
+// Premium estimation & library endpoints
+router.post('/estimate', estimateCalories);
+router.get('/library', getExerciseLibrary);
+router.get('/personal-records', getPersonalRecords);
 
 export default router;

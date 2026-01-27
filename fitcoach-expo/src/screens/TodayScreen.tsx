@@ -462,7 +462,12 @@ const TodayScreen: React.FC = () => {
 
           <View style={{ gap: 16 }}>
             {/* Calories */}
-            <View>
+            <View
+              accessible={true}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Calories process"
+              accessibilityValue={{ min: 0, max: nutritionGoals.calories.target, now: nutritionGoals.calories.current }}
+            >
               <View style={styles.progressLabelRow}>
                 <Text style={styles.progressLabel}>Calories</Text>
                 <Text style={styles.progressValue}>{nutritionGoals.calories.current} / {nutritionGoals.calories.target}</Text>
@@ -473,7 +478,12 @@ const TodayScreen: React.FC = () => {
             </View>
 
             {/* Protein */}
-            <View>
+            <View
+              accessible={true}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Protein progress"
+              accessibilityValue={{ min: 0, max: nutritionGoals.protein.target, now: nutritionGoals.protein.current }}
+            >
               <View style={styles.progressLabelRow}>
                 <Text style={styles.progressLabel}>Protein</Text>
                 <Text style={styles.progressValue}>{nutritionGoals.protein.current}g / {nutritionGoals.protein.target}g</Text>
@@ -484,7 +494,12 @@ const TodayScreen: React.FC = () => {
             </View>
 
             {/* Carbs */}
-            <View>
+            <View
+              accessible={true}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Carbs progress"
+              accessibilityValue={{ min: 0, max: nutritionGoals.carbs.target, now: nutritionGoals.carbs.current }}
+            >
               <View style={styles.progressLabelRow}>
                 <Text style={styles.progressLabel}>Carbs</Text>
                 <Text style={styles.progressValue}>{nutritionGoals.carbs.current}g / {nutritionGoals.carbs.target}g</Text>
@@ -495,7 +510,12 @@ const TodayScreen: React.FC = () => {
             </View>
 
             {/* Fat */}
-            <View>
+            <View
+              accessible={true}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Fat progress"
+              accessibilityValue={{ min: 0, max: nutritionGoals.fat.target, now: nutritionGoals.fat.current }}
+            >
               <View style={styles.progressLabelRow}>
                 <Text style={styles.progressLabel}>Fat</Text>
                 <Text style={styles.progressValue}>{nutritionGoals.fat.current}g / {nutritionGoals.fat.target}g</Text>
@@ -510,28 +530,52 @@ const TodayScreen: React.FC = () => {
         {/* Daily Tools Shortcuts */}
         <View style={{ marginBottom: 16 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Habits')}>
+            <TouchableOpacity
+              style={styles.toolBtn}
+              onPress={() => navigation.navigate('Habits')}
+              accessibilityRole="button"
+              accessibilityLabel="Habits Tracker"
+              accessibilityHint="Navigates to your daily habits list"
+            >
               <View style={[styles.toolIcon, { backgroundColor: '#E0F2FE' }]}>
                 <MaterialCommunityIcons name="check-all" size={24} color="#0EA5E9" />
               </View>
               <Text style={styles.toolText}>Habits</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Todos')}>
+            <TouchableOpacity
+              style={styles.toolBtn}
+              onPress={() => navigation.navigate('Todos')}
+              accessibilityRole="button"
+              accessibilityLabel="To-Do List"
+              accessibilityHint="Navigates to your daily tasks"
+            >
               <View style={[styles.toolIcon, { backgroundColor: '#F0FDF4' }]}>
                 <MaterialCommunityIcons name="format-list-checks" size={24} color="#22C55E" />
               </View>
               <Text style={styles.toolText}>To-Dos</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('Planner')}>
+            <TouchableOpacity
+              style={styles.toolBtn}
+              onPress={() => navigation.navigate('Planner')}
+              accessibilityRole="button"
+              accessibilityLabel="Weekly Planner"
+              accessibilityHint="Navigates to your weekly schedule"
+            >
               <View style={[styles.toolIcon, { backgroundColor: '#FEF3C7' }]}>
                 <MaterialCommunityIcons name="calendar-month" size={24} color="#F59E0B" />
               </View>
               <Text style={styles.toolText}>Planner</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.toolBtn} onPress={() => navigation.navigate('ActiveWorkout', { workout: workout.scheduled })}>
+            <TouchableOpacity
+              style={styles.toolBtn}
+              onPress={() => navigation.navigate('ActiveWorkout', { workout: workout.scheduled })}
+              accessibilityRole="button"
+              accessibilityLabel="Start Live Workout"
+              accessibilityHint="Starts the active workout session"
+            >
               <View style={[styles.toolIcon, { backgroundColor: '#FEE2E2' }]}>
                 <MaterialCommunityIcons name="play-circle" size={24} color="#EF4444" />
               </View>
@@ -615,7 +659,7 @@ const TodayScreen: React.FC = () => {
               </View>
               <TouchableOpacity
                 style={styles.viewWorkoutBtn}
-                onPress={() => navigation.navigate('WorkoutSession', { dailyWorkout: fullWorkoutData || workout })}
+                onPress={() => navigation.navigate('WorkoutPlanner', { dailyWorkout: fullWorkoutData || workout })}
               >
                 <Text style={styles.viewWorkoutText}>View Routine</Text>
                 <MaterialCommunityIcons name="arrow-right" size={16} color="white" />

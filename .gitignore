@@ -33,3 +33,4 @@ web-build/
 fitcoach-ai-*-firebase-adminsdk-*.json
 backend/debug_*.js
 backend/check_*.js
+.gemini/
