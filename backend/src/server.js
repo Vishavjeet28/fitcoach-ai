@@ -129,6 +129,7 @@ import recipeRoutes from './routes/recipe.routes.js';
 import postureCareRoutes from './routes/postureCare.routes.js'; // NEW: Posture & Pain Care
 import liveWorkoutRoutes from './routes/liveWorkout.routes.js'; // NEW: Live Workout Execution
 import yogaRoutes from './routes/yoga.routes.js'; // NEW: Yoga Module
+import notificationRoutes from './routes/notification.routes.js'; // NEW: Smart Notifications
 
 // Apply routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -152,6 +153,7 @@ app.use('/api/recipes', recipeRoutes);
 app.use('/api/posture-care', postureCareRoutes); // NEW: Posture & Pain Care
 app.use('/api/live-workout', liveWorkoutRoutes); // NEW: Live Workout Execution (Isolated)
 app.use('/api/yoga', yogaRoutes); // NEW: Yoga Module
+app.use('/api/notifications', notificationRoutes); // NEW: Smart Notifications
 
 // 404 handler
 app.use((req, res) => {

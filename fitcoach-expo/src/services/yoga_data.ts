@@ -58,6 +58,130 @@ export const YOGA_CATEGORIES = [
     { id: 'stress', title: 'Stress & Relaxation', benefit: 'Calm the mind', count: 3, icon: 'leaf' },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// YOGA ROUTINES - Curated multi-exercise sequences
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface YogaRoutine {
+    id: string;
+    name: string;
+    subtitle: string;
+    description: string;
+    benefits: string[];
+    total_duration_minutes: number;
+    pose_ids: string[]; // Ordered list of pose IDs
+    difficulty: 'Beginner' | 'Intermediate' | 'All Levels';
+    icon: string;
+    gradient: string[]; // For visual styling
+}
+
+export const YOGA_ROUTINES: Record<string, YogaRoutine> = {
+    'morning_energize': {
+        id: 'morning_energize',
+        name: 'Morning Energy Boost',
+        subtitle: 'Wake up your body & mind',
+        description: 'Start your day with this gentle yet energizing sequence. These poses activate your spine, open your chest for deeper breathing, and get your blood flowing.',
+        benefits: [
+            'Increases blood circulation',
+            'Wakes up stiff muscles',
+            'Boosts mental alertness',
+            'Sets positive tone for the day'
+        ],
+        total_duration_minutes: 12,
+        pose_ids: ['cat_cow', 'down_dog', 'wall_angel', 'seated_chest_opener'],
+        difficulty: 'All Levels',
+        icon: 'weather-sunny',
+        gradient: ['#FEF3C7', '#FDE68A']
+    },
+    'stress_relief': {
+        id: 'stress_relief',
+        name: 'Stress Relief & Calm',
+        subtitle: 'Release tension, find peace',
+        description: 'When stress builds up, your body holds it. This sequence targets common tension areas and activates your relaxation response through gentle stretches and breathing.',
+        benefits: [
+            'Lowers cortisol levels',
+            'Releases shoulder & neck tension',
+            'Calms the nervous system',
+            'Improves sleep quality'
+        ],
+        total_duration_minutes: 18,
+        pose_ids: ['neck_release', 'childs_pose_wide', 'supine_twist', 'legs_up_wall_relax', 'corpse_pose'],
+        difficulty: 'Beginner',
+        icon: 'leaf',
+        gradient: ['#D1FAE5', '#A7F3D0']
+    },
+    'back_care': {
+        id: 'back_care',
+        name: 'Back Care Routine',
+        subtitle: 'Strengthen & soothe your spine',
+        description: 'Designed for those who sit at desks or experience back discomfort. This sequence mobilizes the spine, strengthens supporting muscles, and provides relief.',
+        benefits: [
+            'Relieves lower back tension',
+            'Strengthens core support',
+            'Improves spinal mobility',
+            'Prevents future pain'
+        ],
+        total_duration_minutes: 15,
+        pose_ids: ['cat_cow', 'sphinx_pose', 'rolling_bridge', 'supine_twist'],
+        difficulty: 'Beginner',
+        icon: 'human-handsdown',
+        gradient: ['#DBEAFE', '#BFDBFE']
+    },
+    'desk_break': {
+        id: 'desk_break',
+        name: 'Quick Desk Break',
+        subtitle: '5-minute office reset',
+        description: 'Perfect for a midday break. Simple stretches that can be done anywhere to counteract the effects of sitting and screen time.',
+        benefits: [
+            'Counteracts sitting posture',
+            'Refreshes focus',
+            'Quick energy boost',
+            'Reduces eye strain headaches'
+        ],
+        total_duration_minutes: 6,
+        pose_ids: ['neck_release', 'seated_chest_opener'],
+        difficulty: 'Beginner',
+        icon: 'laptop',
+        gradient: ['#E0E7FF', '#C7D2FE']
+    },
+    'evening_wind_down': {
+        id: 'evening_wind_down',
+        name: 'Evening Wind Down',
+        subtitle: 'Prepare for restful sleep',
+        description: 'Transition from your busy day to restful sleep. These calming poses signal to your body that it\'s time to relax and let go of the day.',
+        benefits: [
+            'Prepares body for sleep',
+            'Releases accumulated tension',
+            'Quiets racing thoughts',
+            'Improves sleep quality'
+        ],
+        total_duration_minutes: 20,
+        pose_ids: ['childs_pose_wide', 'supine_twist', 'butterfly_reclined', 'legs_up_wall_relax', 'corpse_pose'],
+        difficulty: 'All Levels',
+        icon: 'weather-night',
+        gradient: ['#EDE9FE', '#DDD6FE']
+    }
+};
+
+// Get today's recommended routine based on time of day
+export const getTodayRoutine = (): YogaRoutine => {
+    const hour = new Date().getHours();
+
+    if (hour >= 5 && hour < 10) {
+        return YOGA_ROUTINES['morning_energize'];
+    } else if (hour >= 10 && hour < 17) {
+        return YOGA_ROUTINES['desk_break'];
+    } else if (hour >= 17 && hour < 20) {
+        return YOGA_ROUTINES['stress_relief'];
+    } else {
+        return YOGA_ROUTINES['evening_wind_down'];
+    }
+};
+
+// Get all routines as array
+export const getAllRoutines = (): YogaRoutine[] => Object.values(YOGA_ROUTINES);
+
+
 // Image Assets - Using our high-resolution trainer library
 const IMG = {
     trainer: require('../../assets/yoga_poses/trainer_seated.png'),

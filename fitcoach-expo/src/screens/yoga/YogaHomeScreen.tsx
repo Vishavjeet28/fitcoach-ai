@@ -4,7 +4,16 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { YOGA_CATEGORIES, YOGA_POSES, YOGA_THEME, YogaPose } from '../../services/yoga_data';
+import {
+    YOGA_FOCUS_AREAS,
+    YOGA_EXERCISES,
+    YOGA_THEME,
+    YogaPose,
+    getTodayRoutine,
+    getAllRoutines,
+    YogaRoutine,
+    getExercisesByCategory,
+} from '../../services/yoga_data_expanded';
 
 const { width } = Dimensions.get('window');
 
@@ -16,8 +25,15 @@ const YOGA_STATS = {
 export default function YogaHomeScreen() {
     const navigation = useNavigation<any>();
 
-    // Mock Recommendation (Rotation Logic)
-    const recommendedPose = YOGA_POSES['butterfly_reclined'];
+    // Get today's recommended routine based on time of day
+    const todayRoutine = getTodayRoutine();
+    const allRoutines = getAllRoutines();
+
+    // Get poses for today's routine preview
+    const routinePoses = todayRoutine.pose_ids
+        .slice(0, 3) // Show first 3
+        .map(id => YOGA_EXERCISES[id])
+        .filter(Boolean);
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -46,64 +62,141 @@ export default function YogaHomeScreen() {
                     />
                 </View>
 
-                {/* 2. Focus Areas (Category Cards) */}
+                {/* ═══════════════ TODAY'S ROUTINE SECTION ═══════════════ */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Focus Areas</Text>
-                    <View style={styles.categoriesGrid}>
-                        {YOGA_CATEGORIES.map((cat) => (
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.label}>TODAY'S RECOMMENDATION</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('AllRoutines')}>
+                            <Text style={styles.seeAllText}>See All</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[styles.routineCard, { backgroundColor: todayRoutine.gradient[0] }]}
+                        onPress={() => navigation.navigate('YogaRoutine', { routineId: todayRoutine.id })}
+                    >
+                        {/* Routine Header */}
+                        <View style={styles.routineHeader}>
+                            <View style={styles.routineIconCircle}>
+                                <MaterialCommunityIcons
+                                    name={todayRoutine.icon as any}
+                                    size={28}
+                                    color={YOGA_THEME.colors.primary}
+                                />
+                            </View>
+                            <View style={styles.routineHeaderText}>
+                                <Text style={styles.routineName}>{todayRoutine.name}</Text>
+                                <Text style={styles.routineSubtitle}>{todayRoutine.subtitle}</Text>
+                            </View>
+                        </View>
+
+                        {/* Meta Info */}
+                        <View style={styles.routineMeta}>
+                            <View style={styles.metaItem}>
+                                <MaterialCommunityIcons name="clock-outline" size={16} color="#555" />
+                                <Text style={styles.metaItemText}>{todayRoutine.total_duration_minutes} min</Text>
+                            </View>
+                            <View style={styles.metaItem}>
+                                <MaterialCommunityIcons name="yoga" size={16} color="#555" />
+                                <Text style={styles.metaItemText}>{todayRoutine.pose_ids.length} exercises</Text>
+                            </View>
+                            <View style={styles.metaItem}>
+                                <Text style={styles.metaItemText}>{todayRoutine.difficulty}</Text>
+                            </View>
+                        </View>
+
+                        {/* Benefits Preview */}
+                        <View style={styles.benefitsPreview}>
+                            <Text style={styles.benefitsLabel}>Why practice this today:</Text>
+                            {todayRoutine.benefits.slice(0, 2).map((benefit, i) => (
+                                <View key={i} style={styles.benefitRow}>
+                                    <MaterialCommunityIcons name="check-circle" size={16} color="#48BB78" />
+                                    <Text style={styles.benefitPreviewText}>{benefit}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        {/* Exercise Thumbnails */}
+                        <View style={styles.exerciseThumbnails}>
+                            {routinePoses.map((pose, i) => (
+                                <Image
+                                    key={pose.id}
+                                    source={pose.hero_image}
+                                    style={[
+                                        styles.exerciseThumb,
+                                        { marginLeft: i > 0 ? -12 : 0, zIndex: routinePoses.length - i }
+                                    ]}
+                                />
+                            ))}
+                            {todayRoutine.pose_ids.length > 3 && (
+                                <View style={styles.moreExercises}>
+                                    <Text style={styles.moreExercisesText}>+{todayRoutine.pose_ids.length - 3}</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Start Button */}
+                        <View style={styles.startRoutineBtn}>
+                            <Text style={styles.startRoutineBtnText}>Start Routine</Text>
+                            <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 2. Focus Areas (Category Cards) - REDESIGNED */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Choose Your Focus</Text>
+                    <Text style={styles.sectionSubtitle}>
+                        Select a focus area to see 20+ targeted exercises
+                    </Text>
+                    <View style={styles.focusAreasContainer}>
+                        {YOGA_FOCUS_AREAS.map((area) => (
                             <TouchableOpacity
-                                key={cat.id}
-                                style={styles.catCard}
-                                onPress={() => navigation.navigate('YogaCategory', { categoryId: cat.id, title: cat.title })}
+                                key={area.id}
+                                style={[styles.focusCard, { backgroundColor: area.gradient[0] }]}
+                                onPress={() => navigation.navigate('YogaCategory', { categoryId: area.id, title: area.title })}
                             >
-                                <View style={styles.catIconContainer}>
-                                    <MaterialCommunityIcons name={cat.icon as any} size={24} color={YOGA_THEME.colors.primary} />
+                                <View style={[styles.focusIconCircle, { backgroundColor: area.color }]}>
+                                    <MaterialCommunityIcons name={area.icon as any} size={28} color="#fff" />
                                 </View>
-                                <Text style={styles.catTitle}>{cat.title}</Text>
-                                <Text style={styles.catBenefit}>{cat.benefit}</Text>
-                                {/* Exercise Count Badge */}
-                                <View style={styles.countBadge}>
-                                    <Text style={styles.countText}>{cat.count} Exercises</Text>
+                                <View style={styles.focusContent}>
+                                    <Text style={styles.focusTitle}>{area.title}</Text>
+                                    <Text style={styles.focusSubtitle}>{area.subtitle}</Text>
+                                    <View style={styles.focusCountBadge}>
+                                        <Text style={styles.focusCountText}>{area.exerciseCount} exercises</Text>
+                                    </View>
                                 </View>
+                                <MaterialCommunityIcons name="chevron-right" size={24} color="#999" />
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
 
-                {/* 3. Today's Recommendation - Updated for Slide Detail Page */}
-                {recommendedPose && (
-                    <View style={styles.section}>
-                        <Text style={styles.label}>RECOMMENDED TODAY</Text>
-                        <TouchableOpacity
-                            style={styles.recCard}
-                            onPress={() => navigation.navigate('YogaSession', { poseId: recommendedPose.id })}
-                        >
-                            <View style={styles.recImageContainer}>
-                                <Image source={recommendedPose.hero_image} style={styles.recImage} />
-                                {/* Changed Play Icon to "Open" icon since it's a slider now */}
-                                <View style={styles.playOverlay}>
-                                    <MaterialCommunityIcons name="arrow-right-circle" size={48} color="white" />
-                                </View>
-                            </View>
-                            <View style={styles.recContent}>
-                                <Text style={styles.recTitle}>{recommendedPose.name}</Text>
-                                <View style={styles.recMetaRow}>
-                                    <View style={styles.pill}>
-                                        <MaterialCommunityIcons name="clock-outline" size={12} color={YOGA_THEME.colors.secondary} />
-                                        <Text style={styles.recMetaText}>{recommendedPose.duration_minutes} min</Text>
-                                    </View>
-                                    <View style={styles.pill}>
-                                        <Text style={styles.recMetaText}>{recommendedPose.difficulty}</Text>
-                                    </View>
-                                </View>
-                                <View style={styles.startBtn}>
-                                    <Text style={styles.startBtnText}>Start Session</Text>
-                                    <MaterialCommunityIcons name="arrow-right" size={16} color="white" />
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                )}
+                {/* 3. All Routines */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Quick Routines</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.routinesScroll}
+                    >
+                        {allRoutines.map((routine) => (
+                            <TouchableOpacity
+                                key={routine.id}
+                                style={[styles.miniRoutineCard, { backgroundColor: routine.gradient[0] }]}
+                                onPress={() => navigation.navigate('YogaRoutine', { routineId: routine.id })}
+                            >
+                                <MaterialCommunityIcons
+                                    name={routine.icon as any}
+                                    size={24}
+                                    color={YOGA_THEME.colors.primary}
+                                />
+                                <Text style={styles.miniRoutineName}>{routine.name}</Text>
+                                <Text style={styles.miniRoutineDuration}>{routine.total_duration_minutes} min</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
 
                 {/* 4. Gentle Progress */}
                 <View style={styles.section}>
@@ -112,7 +205,7 @@ export default function YogaHomeScreen() {
                             <MaterialCommunityIcons name="flower-tulip" size={24} color={YOGA_THEME.colors.success} />
                             <Text style={styles.progressTitle}>Gentle Consistency</Text>
                         </View>
-                        <Text style={styles.progressMainText}>You’ve practiced yoga {YOGA_STATS.streak_days} days this week.</Text>
+                        <Text style={styles.progressMainText}>You've practiced yoga {YOGA_STATS.streak_days} days this week.</Text>
                         <Text style={styles.progressSubText}>Consistency matters more than intensity 🌱</Text>
 
                         <View style={styles.weekRow}>
@@ -170,7 +263,7 @@ const styles = StyleSheet.create({
     badge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.95)',
+        backgroundColor: '#FFFFFF', // Solid color for shadow efficiency
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -242,7 +335,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#F7FAFC',
+        backgroundColor: 'F7FAFC',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 12,
@@ -399,5 +492,209 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#718096',
+    },
+
+    // ═══════════════ TODAY'S ROUTINE SECTION STYLES ═══════════════
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    seeAllText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: YOGA_THEME.colors.accent,
+    },
+    routineCard: {
+        backgroundColor: '#FFFFFF', // Fallback color
+        borderRadius: 24,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
+    },
+    routineHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    routineIconCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+    routineHeaderText: {
+        flex: 1,
+    },
+    routineName: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: YOGA_THEME.colors.primary,
+    },
+    routineSubtitle: {
+        fontSize: 14,
+        color: '#555',
+        marginTop: 2,
+    },
+    routineMeta: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 16,
+    },
+    metaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+    },
+    metaItemText: {
+        fontSize: 13,
+        color: '#555',
+        fontWeight: '500',
+    },
+    benefitsPreview: {
+        marginBottom: 16,
+    },
+    benefitsLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#444',
+        marginBottom: 8,
+    },
+    benefitRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 6,
+    },
+    benefitPreviewText: {
+        fontSize: 14,
+        color: '#444',
+    },
+    exerciseThumbnails: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    exerciseThumb: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    moreExercises: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: -12,
+    },
+    moreExercisesText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#333',
+    },
+    startRoutineBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#48BB78',
+        paddingVertical: 14,
+        borderRadius: 30,
+    },
+    startRoutineBtnText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#fff',
+    },
+
+    // Quick Routines Scroll
+    routinesScroll: {
+        paddingRight: 24,
+    },
+    miniRoutineCard: {
+        width: 140,
+        padding: 16,
+        borderRadius: 16,
+        marginRight: 12,
+        alignItems: 'center',
+    },
+    miniRoutineName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: YOGA_THEME.colors.primary,
+        textAlign: 'center',
+        marginTop: 8,
+    },
+    miniRoutineDuration: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 4,
+    },
+
+    // ═══════════════ REDESIGNED FOCUS AREAS STYLES ═══════════════
+    sectionSubtitle: {
+        fontSize: 14,
+        color: YOGA_THEME.colors.secondary,
+        marginBottom: 20,
+        marginTop: -12,
+    },
+    focusAreasContainer: {
+        gap: 12,
+    },
+    focusCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: '#fff',
+    },
+    focusIconCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    focusContent: {
+        flex: 1,
+    },
+    focusTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: YOGA_THEME.colors.primary,
+        marginBottom: 4,
+    },
+    focusSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 8,
+    },
+    focusCountBadge: {
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+    },
+    focusCountText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#555',
     },
 });

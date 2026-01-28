@@ -3,7 +3,7 @@ import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet } from 'react
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { YOGA_POSES, YOGA_THEME, YogaPose } from '../../services/yoga_data';
+import { YOGA_EXERCISES, YOGA_THEME, YogaPose, getExercisesByCategory, YOGA_FOCUS_AREAS } from '../../services/yoga_data_expanded';
 
 export default function YogaCategoryScreen() {
     const navigation = useNavigation<any>();
@@ -11,28 +11,23 @@ export default function YogaCategoryScreen() {
     const { categoryId, categoryName, title } = route.params || {};
 
     const [poses, setPoses] = useState<YogaPose[]>([]);
+    const [focusArea, setFocusArea] = useState<any>(null);
 
     useEffect(() => {
-        const allPoses = Object.values(YOGA_POSES);
-        let filtered = allPoses;
-
-        // Filter Logic
-        if (categoryId) {
-            const search = categoryId.toLowerCase().replace('_', ' ');
-            filtered = allPoses.filter(p =>
-                p.category.toLowerCase().includes(search) ||
-                (categoryId === 'stress' && p.category === 'Stress & Relaxation') ||
-                (categoryId === 'knee' && p.category === 'Knee Care')
-            );
-        }
+        // Get exercises using the helper function
+        const exercises = getExercisesByCategory(categoryId);
 
         // Sorting (Beginner -> Advanced)
-        const difficultySort = { 'Beginner': 0, 'Intermediate': 1, 'Advanced': 2 };
-        filtered.sort((a, b) => {
+        const difficultySort = { 'Beginner': 0, 'All Levels': 1, 'Intermediate': 2, 'Advanced': 3 };
+        exercises.sort((a, b) => {
             return (difficultySort[a.difficulty as keyof typeof difficultySort] || 0) - (difficultySort[b.difficulty as keyof typeof difficultySort] || 0);
         });
 
-        setPoses(filtered);
+        setPoses(exercises);
+
+        // Get focus area info for header
+        const area = YOGA_FOCUS_AREAS.find(f => f.id === categoryId);
+        setFocusArea(area);
     }, [categoryId]);
 
     const renderItem = ({ item }: { item: YogaPose }) => (

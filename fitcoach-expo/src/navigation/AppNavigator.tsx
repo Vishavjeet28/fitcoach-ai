@@ -52,6 +52,8 @@ import CorrectiveSessionScreen from '../screens/CorrectiveSessionScreen';
 import YogaHomeScreen from '../screens/yoga/YogaHomeScreen';
 import YogaCategoryScreen from '../screens/yoga/YogaCategoryScreen';
 import YogaSessionScreen from '../screens/yoga/YogaSessionScreen';
+import YogaRoutineScreen from '../screens/yoga/YogaRoutineScreen';
+import AllRoutinesScreen from '../screens/yoga/AllRoutinesScreen';
 import YogaLiveSessionScreen from '../screens/yoga/YogaLiveSessionScreen';
 import YogaCompletionScreen from '../screens/yoga/YogaCompletionScreen';
 
@@ -84,6 +86,8 @@ function YogaNavigator() {
       <YogaStack.Screen name="YogaMain" component={YogaHomeScreen} />
       <YogaStack.Screen name="YogaCategory" component={YogaCategoryScreen} />
       <YogaStack.Screen name="YogaSession" component={YogaSessionScreen} />
+      <YogaStack.Screen name="YogaRoutine" component={YogaRoutineScreen} />
+      <YogaStack.Screen name="AllRoutines" component={AllRoutinesScreen} />
       <YogaStack.Screen
         name="YogaLiveSession"
         component={YogaLiveSessionScreen}

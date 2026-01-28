@@ -3,10 +3,9 @@
  * Premium Luxury Exercise Logging Experience
  * 
  * Design Philosophy:
- * - Calm, minimal, white-space-rich
- * - Card-based adaptive UI
- * - Real-time feedback
- * - Feels like Apple Fitness+ / WHOOP
+ * - Dark, immersive, premium fitness aesthetic
+ * - Glassmorphism & Vivid Gradients
+ * - Real-time feedback with visual punch
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -26,42 +25,44 @@ import {
   Animated,
   Easing,
   Dimensions,
+  ImageBackground,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { exerciseAPI, workoutAPI } from '../services/api';
+import { LinearGradient } from 'expo-linear-gradient';
 import apiClient from '../services/api';
+import { workoutAPI } from '../services/api';
 
-const { width } = Dimensions.get('window');
-
-// Premium Design System - Strict White/Neutral Theme
-const colors = {
-  background: '#FFFFFF',
-  surface: '#F8FAFC',
-  surfaceAlt: '#F1F5F9',
-  accent: '#3B82F6',        // Soft premium blue
-  accentLight: '#EFF6FF',
-  accentDark: '#2563EB',
-  textPrimary: '#1E293B',   // Dark neutral (not pure black)
-  textSecondary: '#64748B',
-  textTertiary: '#94A3B8',
-  textMuted: '#CBD5E1',
+// Light, Minimalist Theme (Matching HomeScreen)
+const THEME = {
+  background: '#FAFAFA',
+  surface: '#FFFFFF',
+  primary: '#26D9BB',             // Teal (from Home)
+  secondary: '#8B5CF6',           // Purple (from Home)
+  text: '#1E293B',                // Dark Slate
+  textDim: '#64748B',             // Medium Slate
+  textLight: '#94A3B8',           // Light Slate
   border: '#E2E8F0',
   success: '#10B981',
-  successLight: '#ECFDF5',
-  warning: '#F59E0B',
-  warningLight: '#FFFBEB',
   error: '#EF4444',
-  protein: '#8B5CF6',
-  cardio: '#EC4899',
+  cardio: '#EC4899',              // Pink
+  inputBg: '#F1F5F9',             // Light Gray for inputs
 };
 
-// Exercise Categories with MET values
+// Exercise Categories
 const EXERCISE_CATEGORIES = [
-  { id: 'strength', label: 'Strength', icon: 'dumbbell', color: colors.accent },
-  { id: 'cardio', label: 'Cardio', icon: 'run', color: colors.cardio },
+  { id: 'strength', label: 'Strength', icon: 'dumbbell', color: THEME.primary },
+  { id: 'cardio', label: 'Cardio', icon: 'run', color: THEME.cardio },
+];
+
+const QUICK_ACCESS_EXERCISES = [
+  { id: 's1', name: 'Bench Press', muscleGroup: 'Chest', met: 6.0, restSeconds: 90, type: 'strength', defaultSets: 3, defaultReps: 10 },
+  { id: 's2', name: 'Squats', muscleGroup: 'Legs', met: 6.0, restSeconds: 120, type: 'strength', defaultSets: 3, defaultReps: 10 },
+  { id: 'c1', name: 'Running', muscleGroup: 'Cardio', met: 9.8, restSeconds: 0, type: 'cardio', defaultDuration: 30 },
+  { id: 's3', name: 'Deadlift', muscleGroup: 'Back', met: 6.0, restSeconds: 120, type: 'strength', defaultSets: 3, defaultReps: 5 },
+  { id: 's4', name: 'Pushups', muscleGroup: 'Chest', met: 3.8, restSeconds: 60, type: 'strength', defaultSets: 3, defaultReps: 15 },
 ];
 
 // Common exercises library (fallback)
@@ -114,7 +115,7 @@ const ExerciseLogScreen = () => {
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
   const feedbackScale = useRef(new Animated.Value(0.95)).current;
 
   // State
@@ -151,20 +152,20 @@ const ExerciseLogScreen = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
-        easing: Easing.out(Easing.poly(4)),
+        easing: Easing.out(Easing.cubic),
       }),
-      Animated.timing(slideAnim, {
+      Animated.spring(slideAnim, {
         toValue: 0,
-        duration: 600,
+        friction: 8,
+        tension: 40,
         useNativeDriver: true,
-        easing: Easing.out(Easing.poly(4)),
       }),
     ]).start();
   }, []);
 
-  // Load today's workout for quick pick
+  // Load today's workout
   useFocusEffect(
     useCallback(() => {
       loadTodayWorkout();
@@ -178,12 +179,11 @@ const ExerciseLogScreen = () => {
         setTodayExercises(response.program.exercises.slice(0, 4));
       }
     } catch (e) {
-      // Silently fail - today's workout is optional
       console.log('No today workout available');
     }
   };
 
-  // Calculate calories in real-time
+  // Real-time Calculation
   useEffect(() => {
     if (!selectedExercise) {
       setEstimatedCalories(0);
@@ -195,7 +195,6 @@ const ExerciseLogScreen = () => {
     let durationHours = 0;
 
     if (selectedExercise.type === 'strength') {
-      // Estimate duration: sets * reps * 3 seconds + rest between sets
       const setsNum = parseInt(sets) || 0;
       const repsNum = parseInt(reps) || 0;
       const restSec = selectedExercise.restSeconds || 60;
@@ -204,7 +203,6 @@ const ExerciseLogScreen = () => {
       setRestTime(restSec);
     } else {
       durationHours = (parseInt(duration) || 0) / 60;
-      // Adjust MET for intensity
       const intensityMultiplier = intensity === 'light' ? 0.7 : intensity === 'vigorous' ? 1.3 : 1.0;
       const adjustedMet = met * intensityMultiplier;
       setEstimatedCalories(Math.round(adjustedMet * userWeight * durationHours));
@@ -212,41 +210,60 @@ const ExerciseLogScreen = () => {
       return;
     }
 
-    // Calories = MET × weight(kg) × time(hours)
     const calories = Math.round(met * userWeight * durationHours);
     setEstimatedCalories(calories);
 
-    // Animate feedback card
+    // Pulse animation on stats update
     Animated.sequence([
       Animated.timing(feedbackScale, {
-        toValue: 1.02,
-        duration: 150,
+        toValue: 1.05,
+        duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(feedbackScale, {
+      Animated.spring(feedbackScale, {
         toValue: 1,
-        duration: 150,
+        friction: 5,
         useNativeDriver: true,
       }),
     ]).start();
   }, [selectedExercise, sets, reps, weight, duration, intensity, userWeight]);
 
-  // Select exercise from picker
   const handleSelectExercise = (exercise: any, type: 'strength' | 'cardio') => {
-    setSelectedExercise({
-      ...exercise,
-      type,
-    });
+    setSelectedExercise({ ...exercise, type });
     setShowExercisePicker(false);
     setSelectedCategory(type);
 
-    // Auto-scroll to inputs
+    // Smooth transition
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 150, animated: true });
+    }, 400);
+  };
+
+  const handleQuickSelect = (exercise: any) => {
+    setSelectedExercise({
+      id: exercise.id,
+      name: exercise.name,
+      muscleGroup: exercise.muscleGroup,
+      type: exercise.type as 'strength' | 'cardio',
+      met: exercise.met,
+      restSeconds: exercise.restSeconds || 60
+    });
+
+    if (exercise.type === 'strength') {
+      setSets(exercise.defaultSets?.toString() || '3');
+      setReps(exercise.defaultReps?.toString() || '10');
+    } else {
+      setDuration(exercise.defaultDuration?.toString() || '30');
+    }
+
+    setSelectedCategory(exercise.type as 'strength' | 'cardio');
+
+    // Auto scroll down
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: 200, animated: true });
     }, 300);
   };
 
-  // Get filtered exercises
   const getFilteredExercises = () => {
     const exercises = COMMON_EXERCISES[selectedCategory] || [];
     if (!searchQuery.trim()) return exercises;
@@ -256,30 +273,18 @@ const ExerciseLogScreen = () => {
     );
   };
 
-  // Get encouraging micro-copy
-  const getEncouragingText = () => {
-    if (!selectedExercise) return '';
-    if (selectedExercise.type === 'strength') {
-      const setsNum = parseInt(sets) || 0;
-      const repsNum = parseInt(reps) || 0;
-      if (setsNum >= 4 && repsNum >= 8) return 'Strong set 💪';
-      if (setsNum >= 3) return 'Solid volume';
-      return 'Every rep counts';
-    } else {
-      const dur = parseInt(duration) || 0;
-      if (dur >= 45) return 'Excellent endurance 🔥';
-      if (dur >= 30) return 'Great session';
-      return 'Keep moving';
-    }
+  // Helper for Stepper
+  const updateValue = (setter: any, currentVal: string, delta: number) => {
+    const num = parseInt(currentVal) || 0;
+    const newVal = Math.max(0, num + delta);
+    setter(newVal.toString());
   };
 
-  // Save exercise
   const handleSaveExercise = async () => {
     if (!selectedExercise) return;
 
     try {
       setSaving(true);
-
       const durationMinutes = selectedExercise.type === 'strength'
         ? Math.ceil(((parseInt(sets) || 0) * (parseInt(reps) || 0) * 3 + ((parseInt(sets) || 1) - 1) * restTime) / 60)
         : parseInt(duration) || 0;
@@ -297,19 +302,15 @@ const ExerciseLogScreen = () => {
       };
 
       try {
-        // Attempt API log
         await apiClient.post('/exercise/logs', payload);
       } catch (error: any) {
-        console.log('API call failed, checking if auth/guest issue:', error?.message);
-
-        // If API fails with Auth error (401), Session Expired, or Network Error, assume Guest/Offline mode
+        // Fallback logic remains same
         const isFallbackScenario = error?.response?.status === 401 ||
           error?.code === 'SESSION_EXPIRED' ||
           error?.message?.includes('No refresh token') ||
-          !error?.response; // Network error fallback
+          !error?.response;
 
         if (isFallbackScenario) {
-          console.log('Guest/Offline fallback triggered');
           const existingLogs = await SecureStore.getItemAsync('guest_exercise_logs');
           const logs = existingLogs ? JSON.parse(existingLogs) : [];
           logs.push({
@@ -319,780 +320,765 @@ const ExerciseLogScreen = () => {
             status: 'pending_sync'
           });
           await SecureStore.setItemAsync('guest_exercise_logs', JSON.stringify(logs));
-
-          // Mimic network delay for UX
           await new Promise(resolve => setTimeout(resolve, 500));
         } else {
-          // It's a real server error (500) or bad request (400)
           throw error;
         }
       }
 
-      // Success feedback
       Alert.alert(
-        'Logged! 🎉',
-        `${selectedExercise.name} - ${estimatedCalories} cal burned`,
-        [{ text: 'Done', onPress: () => navigation.goBack() }]
+        'Workout Logged 🚀',
+        `Great job! You crushed ${selectedExercise.name}.`,
+        [{ text: 'Continue', onPress: () => navigation.goBack() }]
       );
     } catch (error: any) {
-      console.error('Save exercise error:', error);
-      Alert.alert('Error', 'Failed to log exercise. Please try again.');
+      Alert.alert('Error', 'Failed to log exercise.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Check if form is valid
   const isFormValid = () => {
     if (!selectedExercise) return false;
-    if (selectedExercise.type === 'strength') {
-      return parseInt(sets) > 0 && parseInt(reps) > 0;
-    }
+    if (selectedExercise.type === 'strength') return parseInt(sets) > 0 && parseInt(reps) > 0;
     return parseInt(duration) > 0;
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Premium Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Track Your Workout</Text>
-          <Text style={styles.headerSubtitle}>Every rep counts today.</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={THEME.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Log Workout</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <View style={{ width: 40 }} />
-      </View>
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <Animated.ScrollView
-          ref={scrollViewRef}
-          style={[styles.scrollView, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Exercise Selection Card */}
-          <TouchableOpacity
-            style={styles.exerciseCard}
-            onPress={() => setShowExercisePicker(true)}
-            activeOpacity={0.8}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <Animated.ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
           >
-            {selectedExercise ? (
-              <View style={styles.selectedExerciseContent}>
-                <View style={[styles.exerciseIconBg, { backgroundColor: selectedExercise.type === 'strength' ? colors.accentLight : '#FDF2F8' }]}>
-                  <MaterialCommunityIcons
-                    name={selectedExercise.type === 'strength' ? 'dumbbell' : 'run'}
-                    size={28}
-                    color={selectedExercise.type === 'strength' ? colors.accent : colors.cardio}
-                  />
-                </View>
-                <View style={styles.exerciseInfo}>
-                  <Text style={styles.exerciseName}>{selectedExercise.name}</Text>
-                  <Text style={styles.exerciseMeta}>
-                    {selectedExercise.muscleGroup} • {selectedExercise.type === 'strength' ? 'Strength' : 'Cardio'}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textTertiary} />
-              </View>
-            ) : (
-              <View style={styles.emptyExerciseContent}>
-                <View style={styles.emptyExerciseIcon}>
-                  <MaterialCommunityIcons name="plus" size={24} color={colors.accent} />
-                </View>
-                <View style={styles.exerciseInfo}>
-                  <Text style={styles.emptyExerciseTitle}>Select Exercise</Text>
-                  <Text style={styles.emptyExerciseSubtitle}>Tap to choose from library</Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textTertiary} />
-              </View>
-            )}
-          </TouchableOpacity>
 
-          {/* Smart Input Section - Adaptive UI */}
-          {selectedExercise && (
-            <View style={styles.inputSection}>
-              <Text style={styles.sectionLabel}>
-                {selectedExercise.type === 'strength' ? 'SET DETAILS' : 'SESSION DETAILS'}
-              </Text>
-
-              {selectedExercise.type === 'strength' ? (
-                // Strength Inputs
-                <View style={styles.inputGrid}>
-                  <View style={styles.inputItem}>
-                    <Text style={styles.inputLabel}>Sets</Text>
-                    <TextInput
-                      style={styles.inputField}
-                      value={sets}
-                      onChangeText={setSets}
-                      keyboardType="numeric"
-                      placeholder="3"
-                      placeholderTextColor={colors.textMuted}
-                      maxLength={2}
-                    />
-                  </View>
-
-                  <View style={styles.inputItem}>
-                    <Text style={styles.inputLabel}>Reps</Text>
-                    <TextInput
-                      style={styles.inputField}
-                      value={reps}
-                      onChangeText={setReps}
-                      keyboardType="numeric"
-                      placeholder="10"
-                      placeholderTextColor={colors.textMuted}
-                      maxLength={3}
-                    />
-                  </View>
-
-                  <View style={styles.inputItem}>
-                    <Text style={styles.inputLabel}>Weight (kg)</Text>
-                    <TextInput
-                      style={styles.inputField}
-                      value={weight}
-                      onChangeText={setWeight}
-                      keyboardType="numeric"
-                      placeholder="—"
-                      placeholderTextColor={colors.textMuted}
-                      maxLength={4}
-                    />
-                  </View>
-                </View>
-              ) : (
-                // Cardio Inputs
-                <View style={styles.cardioInputs}>
-                  <View style={styles.durationInput}>
-                    <Text style={styles.inputLabel}>Duration (minutes)</Text>
-                    <TextInput
-                      style={styles.inputFieldLarge}
-                      value={duration}
-                      onChangeText={setDuration}
-                      keyboardType="numeric"
-                      placeholder="30"
-                      placeholderTextColor={colors.textMuted}
-                      maxLength={3}
-                    />
-                  </View>
-
-                  <Text style={[styles.inputLabel, { marginTop: 20 }]}>Intensity</Text>
-                  <View style={styles.intensityRow}>
-                    {(['light', 'moderate', 'vigorous'] as const).map((level) => (
-                      <TouchableOpacity
-                        key={level}
-                        style={[
-                          styles.intensityButton,
-                          intensity === level && styles.intensityButtonActive,
-                        ]}
-                        onPress={() => setIntensity(level)}
-                      >
-                        <Text style={[
-                          styles.intensityLabel,
-                          intensity === level && styles.intensityLabelActive,
-                        ]}>
-                          {level.charAt(0).toUpperCase() + level.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Live Feedback Card */}
-          {selectedExercise && (estimatedCalories > 0 || restTime > 0) && (
-            <Animated.View style={[styles.feedbackCard, { transform: [{ scale: feedbackScale }] }]}>
-              <View style={styles.feedbackHeader}>
-                <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.accent} />
-                <Text style={styles.feedbackTitle}>Live Stats</Text>
-              </View>
-
-              <View style={styles.feedbackStats}>
-                <View style={styles.feedbackStat}>
-                  <Text style={styles.feedbackValue}>{estimatedCalories}</Text>
-                  <Text style={styles.feedbackLabel}>Calories</Text>
-                </View>
-
-                {selectedExercise.type === 'strength' && restTime > 0 && (
-                  <View style={styles.feedbackStat}>
-                    <Text style={styles.feedbackValue}>{restTime}s</Text>
-                    <Text style={styles.feedbackLabel}>Rest Time</Text>
-                  </View>
-                )}
-
-                <View style={styles.feedbackStat}>
-                  <Text style={styles.feedbackValue}>{selectedExercise.muscleGroup}</Text>
-                  <Text style={styles.feedbackLabel}>Target</Text>
-                </View>
-              </View>
-
-              <View style={styles.encouragementRow}>
-                <Text style={styles.encouragementText}>{getEncouragingText()}</Text>
-              </View>
-            </Animated.View>
-          )}
-
-          {/* Bottom Spacer */}
-          <View style={{ height: 120 }} />
-        </Animated.ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* Bottom Action */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.skipButtonText}>Cancel</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.logButton, !isFormValid() && styles.logButtonDisabled]}
-          onPress={handleSaveExercise}
-          disabled={!isFormValid() || saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="#FFF" size="small" />
-          ) : (
-            <Text style={styles.logButtonText}>Log Exercise</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Exercise Picker Modal */}
-      <Modal
-        visible={showExercisePicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowExercisePicker(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Exercise</Text>
-            <TouchableOpacity
-              style={styles.modalClose}
-              onPress={() => setShowExercisePicker(false)}
-            >
-              <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Search */}
-          <View style={styles.searchContainer}>
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.textTertiary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search exercises..."
-              placeholderTextColor={colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          {/* Category Tabs */}
-          <View style={styles.categoryTabs}>
-            {EXERCISE_CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryTab,
-                  selectedCategory === cat.id && styles.categoryTabActive,
-                ]}
-                onPress={() => setSelectedCategory(cat.id as 'strength' | 'cardio')}
-              >
-                <MaterialCommunityIcons
-                  name={cat.icon as any}
-                  size={18}
-                  color={selectedCategory === cat.id ? colors.accent : colors.textTertiary}
-                />
-                <Text style={[
-                  styles.categoryTabLabel,
-                  selectedCategory === cat.id && styles.categoryTabLabelActive,
-                ]}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Today's Workout Shortcut */}
-          {todayExercises.length > 0 && (
-            <View style={styles.todaySection}>
-              <Text style={styles.todaySectionLabel}>FROM TODAY'S WORKOUT</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {todayExercises.map((ex) => (
+            {/* QUICK ACCESS CHIPS */}
+            <View style={styles.quickAccessContainer}>
+              <Text style={styles.sectionLabel}>QUICK ADD</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickScroll}>
+                {QUICK_ACCESS_EXERCISES.map((ex) => (
                   <TouchableOpacity
                     key={ex.id}
-                    style={styles.todayExerciseChip}
-                    onPress={() => handleSelectExercise({
-                      id: ex.id,
-                      name: ex.name,
-                      muscleGroup: 'Planned',
-                      met: 5.0,
-                      restSeconds: 60,
-                    }, 'strength')}
+                    style={styles.quickChip}
+                    onPress={() => handleQuickSelect(ex)}
                   >
-                    <Text style={styles.todayExerciseText}>{ex.name}</Text>
+                    <View
+                      style={[styles.quickChipContent, {
+                        backgroundColor: ex.type === 'strength' ? THEME.primary + '15' : THEME.cardio + '15',
+                        borderColor: ex.type === 'strength' ? THEME.primary : THEME.cardio
+                      }]}
+                    >
+                      <MaterialCommunityIcons
+                        name={ex.type === 'strength' ? 'dumbbell' : 'run'}
+                        size={14}
+                        color={ex.type === 'strength' ? THEME.primary : THEME.cardio}
+                      />
+                      <Text style={[styles.quickChipText, { color: ex.type === 'strength' ? THEME.primary : THEME.cardio }]}>
+                        {ex.name}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
-          )}
 
-          {/* Exercise List */}
-          <ScrollView style={styles.exerciseList} showsVerticalScrollIndicator={false}>
-            {getFilteredExercises().map((exercise) => (
-              <TouchableOpacity
-                key={exercise.id}
-                style={styles.exerciseListItem}
-                onPress={() => handleSelectExercise(exercise, selectedCategory)}
-              >
-                <View style={[styles.exerciseListIcon, { backgroundColor: selectedCategory === 'strength' ? colors.accentLight : '#FDF2F8' }]}>
-                  <MaterialCommunityIcons
-                    name={selectedCategory === 'strength' ? 'dumbbell' : 'run'}
-                    size={20}
-                    color={selectedCategory === 'strength' ? colors.accent : colors.cardio}
-                  />
+            {/* HERO SELECTOR CARD */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setShowExercisePicker(true)}
+              style={[
+                styles.selectorCard,
+                selectedExercise ? { borderColor: THEME.primary, borderWidth: 1 } : {}
+              ]}
+            >
+              {selectedExercise ? (
+                <View style={styles.selectedContent}>
+                  <View style={[styles.iconCircle, { backgroundColor: selectedExercise.type === 'strength' ? THEME.primary + '20' : THEME.cardio + '20' }]}>
+                    <MaterialCommunityIcons
+                      name={selectedExercise.type === 'strength' ? 'dumbbell' : 'run-fast'}
+                      size={32}
+                      color={selectedExercise.type === 'strength' ? THEME.primary : THEME.cardio}
+                    />
+                  </View>
+                  <View style={styles.selectedInfo}>
+                    <Text style={styles.selectedLabel}>SELECTED EXERCISE</Text>
+                    <Text style={styles.selectedName}>{selectedExercise.name}</Text>
+                    <Text style={styles.selectedMeta}>{selectedExercise.muscleGroup}</Text>
+                  </View>
+                  <MaterialCommunityIcons name="pencil" size={20} color={THEME.textDim} />
                 </View>
-                <View style={styles.exerciseListInfo}>
-                  <Text style={styles.exerciseListName}>{exercise.name}</Text>
-                  <Text style={styles.exerciseListMeta}>{exercise.muscleGroup}</Text>
+              ) : (
+                <View style={styles.emptyContent}>
+                  <View style={styles.plusIcon}>
+                    <MaterialCommunityIcons name="plus" size={30} color={THEME.primary} />
+                  </View>
+                  <Text style={styles.emptyText}>Tap to select exercise</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+              )}
+            </TouchableOpacity>
+
+            {/* INPUTS CONTAINER */}
+            {selectedExercise && (
+              <View style={styles.inputsContainer}>
+                <Text style={styles.sectionTitle}>
+                  {selectedExercise.type === 'strength' ? 'PERFORMANCE METRICS' : 'SESSION DETAILS'}
+                </Text>
+
+                {selectedExercise.type === 'strength' ? (
+                  <View style={styles.strengthGrid}>
+                    {/* SETS with Stepper */}
+                    <View style={styles.inputCard}>
+                      <Text style={styles.inputLabel}>SETS</Text>
+                      <View style={styles.stepperRow}>
+                        <TouchableOpacity onPress={() => updateValue(setSets, sets, -1)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="minus" size={16} color={THEME.textDim} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.heavyInput}
+                          value={sets}
+                          onChangeText={setSets}
+                          keyboardType="numeric"
+                          placeholder="0"
+                          placeholderTextColor={THEME.textDim}
+                          maxLength={2}
+                        />
+                        <TouchableOpacity onPress={() => updateValue(setSets, sets, 1)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="plus" size={16} color={THEME.text} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* REPS with Stepper */}
+                    <View style={styles.inputCard}>
+                      <Text style={styles.inputLabel}>REPS</Text>
+                      <View style={styles.stepperRow}>
+                        <TouchableOpacity onPress={() => updateValue(setReps, reps, -1)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="minus" size={16} color={THEME.textDim} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.heavyInput}
+                          value={reps}
+                          onChangeText={setReps}
+                          keyboardType="numeric"
+                          placeholder="0"
+                          placeholderTextColor={THEME.textDim}
+                          maxLength={3}
+                        />
+                        <TouchableOpacity onPress={() => updateValue(setReps, reps, 1)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="plus" size={16} color={THEME.text} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* WEIGHT (Standard Input) */}
+                    <View style={[styles.inputCard, { flex: 1.2 }]}>
+                      <Text style={styles.inputLabel}>WEIGHT (KG)</Text>
+                      <View style={styles.stepperRow}>
+                        <TextInput
+                          style={styles.heavyInput}
+                          value={weight}
+                          onChangeText={setWeight}
+                          keyboardType="numeric"
+                          placeholder="--"
+                          placeholderTextColor={THEME.textDim}
+                          maxLength={4}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.cardioContainer}>
+                    <View style={styles.inputCard}>
+                      <Text style={styles.inputLabel}>DURATION (MIN)</Text>
+                      <View style={styles.stepperRow}>
+                        <TouchableOpacity onPress={() => updateValue(setDuration, duration, -5)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="minus" size={16} color={THEME.textDim} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.heavyInput}
+                          value={duration}
+                          onChangeText={setDuration}
+                          keyboardType="numeric"
+                          placeholder="30"
+                          placeholderTextColor={THEME.textDim}
+                          maxLength={3}
+                        />
+                        <TouchableOpacity onPress={() => updateValue(setDuration, duration, 5)} style={styles.stepperBtn}>
+                          <MaterialCommunityIcons name="plus" size={16} color={THEME.text} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <Text style={[styles.inputLabel, { marginTop: 24, marginBottom: 12 }]}>INTENSITY</Text>
+                    <View style={styles.intensityRow}>
+                      {(['light', 'moderate', 'vigorous'] as const).map((level) => (
+                        <TouchableOpacity
+                          key={level}
+                          style={[
+                            styles.intensityBtn,
+                            intensity === level && { backgroundColor: THEME.primary, borderColor: THEME.primary }
+                          ]}
+                          onPress={() => setIntensity(level)}
+                        >
+                          <Text style={[
+                            styles.intensityText,
+                            intensity === level && { color: '#0F172A', fontWeight: '800' }
+                          ]}>
+                            {level.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* LIVE FEEDBACK STATS */}
+            {selectedExercise && (
+              <Animated.View style={[styles.statsCard, { transform: [{ scale: feedbackScale }] }]}>
+                <View style={styles.statsGradient}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{estimatedCalories}</Text>
+                    <Text style={styles.statLabel}>KCAL</Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  {selectedExercise.type === 'strength' ? (
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{restTime}s</Text>
+                      <Text style={styles.statLabel}>REST</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{duration}</Text>
+                      <Text style={styles.statLabel}>MINS</Text>
+                    </View>
+                  )}
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <MaterialCommunityIcons name="fire" size={24} color={THEME.cardio} />
+                    <Text style={[styles.statLabel, { marginTop: 4 }]}>BURN</Text>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
+
+            <View style={{ height: 100 }} />
+          </Animated.ScrollView>
+        </KeyboardAvoidingView>
+
+        {/* BOTTOM ACTION BAR */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.saveButton, (!isFormValid() || saving) && { opacity: 0.5 }]}
+            onPress={handleSaveExercise}
+            disabled={!isFormValid() || saving}
+          >
+            <LinearGradient
+              colors={[THEME.primary, THEME.secondary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.saveGradient}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <>
+                  <Text style={styles.saveText}>LOG WORKOUT</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={20} color="#FFF" />
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* MODERN EXERCISE PICKER MODAL */}
+        <Modal visible={showExercisePicker} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Exercise</Text>
+                <TouchableOpacity onPress={() => setShowExercisePicker(false)} style={styles.closeBtn}>
+                  <MaterialCommunityIcons name="close" size={24} color={THEME.text} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.searchBox}>
+                <MaterialCommunityIcons name="magnify" size={20} color={THEME.textDim} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search exercises..."
+                  placeholderTextColor={THEME.textDim}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+              </View>
+
+              <View style={styles.tabsRow}>
+                {EXERCISE_CATEGORIES.map(cat => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.tabBtn, selectedCategory === cat.id && { backgroundColor: cat.color + '30', borderColor: cat.color }]}
+                    onPress={() => setSelectedCategory(cat.id as any)}
+                  >
+                    <MaterialCommunityIcons name={cat.icon as any} size={18} color={selectedCategory === cat.id ? cat.color : THEME.textDim} />
+                    <Text style={[styles.tabText, selectedCategory === cat.id && { color: cat.color }]}>{cat.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <ScrollView contentContainerStyle={styles.listContent}>
+                {getFilteredExercises().map((ex, i) => (
+                  <TouchableOpacity
+                    key={ex.id}
+                    style={styles.listItem}
+                    onPress={() => handleSelectExercise(ex, selectedCategory)}
+                  >
+                    <View style={[styles.listIcon, { backgroundColor: selectedCategory === 'strength' ? THEME.primary + '20' : THEME.cardio + '20' }]}>
+                      <MaterialCommunityIcons
+                        name={selectedCategory === 'strength' ? 'dumbbell' : 'run'}
+                        size={20}
+                        color={selectedCategory === 'strength' ? THEME.primary : THEME.cardio}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listName}>{ex.name}</Text>
+                      <Text style={styles.listMeta}>{ex.muscleGroup}</Text>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={THEME.textDim} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+      </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: THEME.background,
   },
-  flex: {
+  safeArea: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: colors.background,
   },
-  backButton: {
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.surface,
+    backgroundColor: THEME.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerContent: {
-    flex: 1,
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
+    color: THEME.text,
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-
-  // Exercise Card
-  exerciseCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  selectedExerciseContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  exerciseIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exerciseInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  exerciseName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  exerciseMeta: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  emptyExerciseContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  emptyExerciseIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.accent,
-    borderStyle: 'dashed',
-  },
-  emptyExerciseTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  emptyExerciseSubtitle: {
-    fontSize: 13,
-    color: colors.textTertiary,
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
   },
 
-  // Input Section
-  inputSection: {
+  // Quick Access
+  quickAccessContainer: {
     marginBottom: 24,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.textTertiary,
-    letterSpacing: 1.5,
-    marginBottom: 16,
+    color: THEME.textLight,
+    letterSpacing: 1,
+    marginBottom: 12,
+    marginLeft: 4,
   },
-  inputGrid: {
+  quickScroll: {
+    gap: 12,
+  },
+  quickChip: {
+    borderRadius: 20,
+  },
+  quickChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  quickChipText: {
+    fontWeight: '600',
+    fontSize: 13,
+  },
+
+  // Selector Card
+  selectorCard: {
+    height: 120,
+    borderRadius: 24,
+    marginBottom: 30,
+    overflow: 'hidden',
+    backgroundColor: THEME.surface,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+    justifyContent: 'center',
+  },
+  emptyContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  plusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: THEME.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: THEME.textDim,
+  },
+  selectedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  selectedInfo: {
+    flex: 1,
+  },
+  selectedLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: THEME.textLight,
+    marginBottom: 4,
+    letterSpacing: 1,
+  },
+  selectedName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.text,
+    marginBottom: 2,
+    letterSpacing: -0.5,
+  },
+  selectedMeta: {
+    fontSize: 14,
+    color: THEME.textDim,
+  },
+
+  // Inputs
+  inputsContainer: {
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.textLight,
+    marginBottom: 16,
+    letterSpacing: 1,
+    marginLeft: 4,
+  },
+  strengthGrid: {
     flexDirection: 'row',
     gap: 12,
   },
-  inputItem: {
+  inputCard: {
     flex: 1,
+    backgroundColor: THEME.surface,
+    borderRadius: 20,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.textDim,
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
-  inputField: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  stepperBtn: {
+    padding: 8,
+    backgroundColor: THEME.inputBg,
+    borderRadius: 12,
+  },
+  heavyInput: {
     fontSize: 24,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: THEME.text,
+    flex: 1,
     textAlign: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 0,
   },
-  cardioInputs: {},
-  durationInput: {},
-  inputFieldLarge: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+  cardioContainer: {
+    backgroundColor: THEME.surface,
+    borderRadius: 24,
     padding: 24,
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: THEME.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
   },
   intensityRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
+    gap: 10,
   },
-  intensityButton: {
+  intensityBtn: {
     flex: 1,
-    backgroundColor: colors.surface,
+    height: 44,
     borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-  },
-  intensityButtonActive: {
-    backgroundColor: colors.accentLight,
-    borderColor: colors.accent,
-  },
-  intensityLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  intensityLabelActive: {
-    color: colors.accent,
-  },
-
-  // Feedback Card
-  feedbackCard: {
-    backgroundColor: colors.successLight,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.success + '30',
-  },
-  feedbackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  feedbackTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.success,
-    letterSpacing: 0.5,
-  },
-  feedbackStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  feedbackStat: {
-    alignItems: 'center',
-  },
-  feedbackValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  feedbackLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  encouragementRow: {
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-  },
-  encouragementText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.accent,
-  },
-
-  // Bottom Actions
-  bottomActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    paddingBottom: 32,
-    gap: 12,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  skipButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
-  skipButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  logButton: {
-    flex: 1,
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderColor: THEME.border,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: THEME.inputBg,
   },
-  logButtonDisabled: {
-    backgroundColor: colors.textMuted,
+  intensityText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME.textDim,
   },
-  logButtonText: {
+
+  // Stats
+  statsCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: THEME.surface,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  statsGradient: {
+    flexDirection: 'row',
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.surface,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: THEME.text,
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: THEME.textLight,
+    letterSpacing: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: THEME.border,
+  },
+
+  // Footer
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    backgroundColor: 'rgba(250,250,250,0.9)', // blur effect wrapper
+  },
+  saveButton: {
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    shadowColor: THEME.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  saveGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  saveText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#FFF',
+    letterSpacing: 0.5,
   },
 
   // Modal
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'rgba(0,0,0,0.5)', // Lighter overlay
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    height: '85%',
+    backgroundColor: '#FFFFFF', // Light modal
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    padding: 24,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: THEME.text,
+    letterSpacing: -0.5,
   },
-  modalClose: {
-    width: 40,
-    height: 40,
+  closeBtn: {
+    padding: 8,
+    backgroundColor: THEME.inputBg,
     borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-
-  // Search
-  searchContainer: {
+  searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: THEME.inputBg,
     marginHorizontal: 24,
-    marginTop: 16,
-    borderRadius: 12,
     paddingHorizontal: 16,
-    gap: 12,
+    height: 50,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: THEME.border,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: colors.textPrimary,
-    paddingVertical: 14,
+    marginLeft: 12,
+    color: THEME.text,
+    fontSize: 16,
   },
-
-  // Category Tabs
-  categoryTabs: {
+  tabsRow: {
     flexDirection: 'row',
     paddingHorizontal: 24,
-    marginTop: 20,
     gap: 12,
+    marginBottom: 20,
   },
-  categoryTab: {
+  tabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.surface,
+    height: 44,
     borderRadius: 12,
-    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: THEME.border,
+    gap: 8,
+    backgroundColor: THEME.surface,
   },
-  categoryTabActive: {
-    backgroundColor: colors.accentLight,
-    borderColor: colors.accent,
-  },
-  categoryTabLabel: {
+  tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: THEME.textDim,
   },
-  categoryTabLabelActive: {
-    color: colors.accent,
-  },
-
-  // Today's Workout Section
-  todaySection: {
+  listContent: {
     paddingHorizontal: 24,
-    marginTop: 24,
+    paddingBottom: 40,
   },
-  todaySectionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textTertiary,
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  todayExerciseChip: {
-    backgroundColor: colors.warningLight,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.warning + '30',
-  },
-  todayExerciseText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.warning,
-  },
-
-  // Exercise List
-  exerciseList: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  exerciseListItem: {
+  listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
   },
-  exerciseListIcon: {
+  listIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 16,
   },
-  exerciseListInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  exerciseListName: {
-    fontSize: 15,
+  listName: {
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: THEME.text,
     marginBottom: 2,
   },
-  exerciseListMeta: {
+  listMeta: {
     fontSize: 13,
-    color: colors.textTertiary,
+    color: THEME.textDim,
   },
 });
 
